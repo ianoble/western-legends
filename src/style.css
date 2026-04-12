@@ -1,0 +1,5 @@
+@import 'tailwindcss';
+
+.drag-overlay {
+  display: none !important;
+}
