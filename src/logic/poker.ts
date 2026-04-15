@@ -71,6 +71,147 @@ export function comparePokerHands(handA: StandardCard[], handB: StandardCard[]):
   return comparePokerScores(bestPokerScore(handA), bestPokerScore(handB));
 }
 
+function orderToRank(o: number): Rank {
+  if (o === 14) return 'A';
+  if (o === 13) return 'K';
+  if (o === 12) return 'Q';
+  if (o === 11) return 'J';
+  if (o === 10) return '10';
+  if (o >= 2 && o <= 9) return String(o) as Rank;
+  throw new Error(`invalid rank order ${o}`);
+}
+
+/** One step weaker for poker rank (A→K→…→3); `2` cannot go lower. */
+export function decreaseRankByOne(rank: Rank): Rank | null {
+  const o = rankOrder(rank);
+  if (o <= 2) return null;
+  return orderToRank(o - 1);
+}
+
+/** Blackjack-style card `value` (same convention as the standard deck builder). */
+function standardCardValueForRank(rank: Rank): number {
+  if (rank === 'A') return 11;
+  if (rank === 'J' || rank === 'Q' || rank === 'K') return 10;
+  return parseInt(rank, 10);
+}
+
+/**
+ * Defender items (Six Iron, Old Betsy, Long Tom): after fight cards are revealed, reduce **one**
+ * challenger's card by one rank and re-score if that flips a challenger win to a defender win,
+ * or to a tie (prefers defender win when possible).
+ */
+export function applyDefenderDowngradeChallengerOneCard(
+  handChallenger: StandardCard[],
+  handDefender: StandardCard[],
+): { challenger: StandardCard[]; summary: string | null } {
+  const baseCmp = comparePokerHands(handChallenger, handDefender);
+  if (baseCmp <= 0) {
+    return { challenger: handChallenger, summary: null };
+  }
+
+  for (const want of ['defenderWin', 'tie'] as const) {
+    for (let i = 0; i < handChallenger.length; i++) {
+      const c = handChallenger[i]!;
+      const newR = decreaseRankByOne(c.rank);
+      if (newR == null) continue;
+      const next = handChallenger.map((card, j) =>
+        j === i
+          ? ({
+              ...card,
+              rank: newR,
+              value: standardCardValueForRank(newR),
+              id: `${newR}-${card.suit}`,
+            } as StandardCard)
+          : card,
+      );
+      const cmp = comparePokerHands(next, handDefender);
+      if (want === 'defenderWin' && cmp < 0) {
+        return {
+          challenger: next,
+          summary: `reduced challenger's ${c.rank}→${newR}; defender wins fight`,
+        };
+      }
+      if (want === 'tie' && cmp === 0) {
+        return {
+          challenger: next,
+          summary: `reduced challenger's ${c.rank}→${newR}; fight tied`,
+        };
+      }
+    }
+  }
+
+  return { challenger: handChallenger, summary: null };
+}
+
+/**
+ * Best 5-card poker score using exactly 3 community cards and 2 distinct hole cards from `hand`.
+ * (Saloon: flop + choose 2 from your hand.)
+ */
+export function bestPokerScoreFromHandAndFlop(hand: StandardCard[], flop: StandardCard[]): PokerScore {
+  if (flop.length !== 3 || hand.length < 2) {
+    return { category: HAND_CATEGORY.highCard, kickers: [] };
+  }
+  const subs = combinations(hand, 2);
+  let best: PokerScore | null = null;
+  for (const two of subs) {
+    const s = scoreFiveCards([...two, ...flop]);
+    if (!best || comparePokerScores(s, best) > 0) best = s;
+  }
+  return best ?? { category: HAND_CATEGORY.highCard, kickers: [] };
+}
+
+/** Category scale for 3-card “fight” draws (heist guard); separate numeric range from 5-card poker. */
+export const THREE_CARD_CATEGORY = {
+  highCard: 0,
+  pair: 1,
+  flush: 2,
+  straight: 3,
+  trips: 4,
+  straightFlush: 5,
+} as const;
+
+/** Score exactly three cards (heist guard draw). Higher category and kickers win. */
+export function scoreThreeCardFight(cards: StandardCard[]): PokerScore {
+  if (cards.length !== 3) return { category: 0, kickers: [] };
+  const ranks = cards.map((c) => rankOrder(c.rank)).sort((a, b) => b - a);
+  const flush = cards[0]!.suit === cards[1]!.suit && cards[1]!.suit === cards[2]!.suit;
+  const trip = ranks[0] === ranks[1] && ranks[1] === ranks[2];
+  const pair = ranks[0] === ranks[1] || ranks[1] === ranks[2];
+  const straightHigh = threeCardStraightHigh(ranks);
+
+  if (flush && straightHigh !== null) {
+    return { category: THREE_CARD_CATEGORY.straightFlush, kickers: [straightHigh] };
+  }
+  if (trip) {
+    return { category: THREE_CARD_CATEGORY.trips, kickers: [ranks[0]] };
+  }
+  if (straightHigh !== null) {
+    return { category: THREE_CARD_CATEGORY.straight, kickers: [straightHigh] };
+  }
+  if (flush) {
+    return { category: THREE_CARD_CATEGORY.flush, kickers: [...ranks] };
+  }
+  if (pair) {
+    const pr = ranks[0] === ranks[1] ? ranks[0]! : ranks[1]!;
+    const kicker = ranks[0] === ranks[1] ? ranks[2]! : ranks[0]!;
+    return { category: THREE_CARD_CATEGORY.pair, kickers: [pr, kicker] };
+  }
+  return { category: THREE_CARD_CATEGORY.highCard, kickers: [...ranks] };
+}
+
+function threeCardStraightHigh(sortedDesc: number[]): number | null {
+  if (sortedDesc.length !== 3) return null;
+  const [a, b, c] = sortedDesc;
+  if (a === 14 && b === 3 && c === 2) return 3;
+  if (a - b === 1 && b - c === 1) return a;
+  return null;
+}
+
+/** Compare 3-card fight hands. Positive if a wins; 0 tie. */
+export function compareThreeCardFight(a: StandardCard[], b: StandardCard[]): number {
+  return comparePokerScores(scoreThreeCardFight(a), scoreThreeCardFight(b));
+}
+
 function scoreFiveCards(cards: StandardCard[]): PokerScore {
   const ranks = cards.map((c) => rankOrder(c.rank)).sort((x, y) => y - x);
   const rankCounts = new Map<number, number>();

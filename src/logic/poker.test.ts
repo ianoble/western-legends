@@ -1,6 +1,17 @@
 import { describe, it, expect } from 'vitest';
 import { createStandardDeck } from '../../../noble-bg-engine/packages/engine/src/utils/deck-utils.js';
-import { bestPokerScore, comparePokerHands, HAND_CATEGORY, rankOrder } from './poker';
+import {
+  applyDefenderDowngradeChallengerOneCard,
+  bestPokerScore,
+  bestPokerScoreFromHandAndFlop,
+  comparePokerHands,
+  compareThreeCardFight,
+  decreaseRankByOne,
+  HAND_CATEGORY,
+  THREE_CARD_CATEGORY,
+  rankOrder,
+  scoreThreeCardFight,
+} from './poker';
 
 function pick(ids: string[]): ReturnType<typeof createStandardDeck> {
   const deck = createStandardDeck();
@@ -51,6 +62,34 @@ describe('bestPokerScore', () => {
   });
 });
 
+describe('decreaseRankByOne', () => {
+  it('steps ace down to king and two has no lower', () => {
+    expect(decreaseRankByOne('A')).toBe('K');
+    expect(decreaseRankByOne('3')).toBe('2');
+    expect(decreaseRankByOne('2')).toBeNull();
+  });
+});
+
+describe('applyDefenderDowngradeChallengerOneCard', () => {
+  it('flips a narrow challenger win to defender win when lowering one rank works', () => {
+    const ch = pick(['A-hearts', 'J-diamonds', '9-clubs', '4-hearts', '2-spades']);
+    const def = pick(['K-clubs', 'Q-diamonds', 'J-spades', '8-hearts', '3-clubs']);
+    expect(comparePokerHands(ch, def)).toBeGreaterThan(0);
+    const r = applyDefenderDowngradeChallengerOneCard(ch, def);
+    expect(r.summary).toMatch(/defender wins fight/);
+    expect(comparePokerHands(r.challenger, def)).toBeLessThan(0);
+  });
+
+  it('does nothing when challenger already loses', () => {
+    const weak = pick(['7-hearts', '5-diamonds', '4-spades', '3-hearts', '2-clubs']);
+    const strong = pick(['A-hearts', 'K-diamonds', 'Q-spades', 'J-hearts', '10-clubs']);
+    expect(comparePokerHands(weak, strong)).toBeLessThan(0);
+    const r = applyDefenderDowngradeChallengerOneCard(weak, strong);
+    expect(r.summary).toBeNull();
+    expect(r.challenger).toBe(weak);
+  });
+});
+
 describe('comparePokerHands', () => {
   it('pair beats high card', () => {
     const pair = pick(['K-hearts', 'K-diamonds', '9-clubs', '4-hearts', '2-spades']);
@@ -62,5 +101,23 @@ describe('comparePokerHands', () => {
     const a = pick(['A-hearts', 'J-diamonds', '9-clubs', '4-hearts', '2-spades']);
     const b = pick(['A-clubs', 'J-hearts', '9-diamonds', '4-spades', '2-hearts']);
     expect(comparePokerHands(a, b)).toBe(0);
+  });
+});
+
+describe('bestPokerScoreFromHandAndFlop', () => {
+  it('combines two hole cards with flop', () => {
+    const hand = pick(['A-hearts', 'K-hearts', '2-clubs', '3-spades']);
+    const flop = pick(['Q-hearts', 'J-hearts', '10-hearts']);
+    const s = bestPokerScoreFromHandAndFlop(hand, flop);
+    expect(s.category).toBe(HAND_CATEGORY.straightFlush);
+  });
+});
+
+describe('compareThreeCardFight', () => {
+  it('trips beat pair', () => {
+    const trips = pick(['7-hearts', '7-diamonds', '7-spades']);
+    const pair = pick(['K-hearts', 'K-diamonds', '2-spades']);
+    expect(compareThreeCardFight(trips, pair)).toBeGreaterThan(0);
+    expect(scoreThreeCardFight(trips).category).toBe(THREE_CARD_CATEGORY.trips);
   });
 });

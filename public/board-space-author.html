@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>Western Legends - board space coordinates</title>
+		<style>
+			body {
+				font-family: system-ui, sans-serif;
+				margin: 1rem;
+				background: #0f172a;
+				color: #e2e8f0;
+			}
+			#board {
+				position: relative;
+				display: inline-block;
+				max-width: 100%;
+			}
+			#board img {
+				display: block;
+				max-width: 100%;
+				height: auto;
+			}
+			#out {
+				margin-top: 1rem;
+				white-space: pre-wrap;
+				font-family: ui-monospace, monospace;
+				font-size: 12px;
+				background: #1e293b;
+				padding: 0.75rem;
+				border-radius: 6px;
+				max-width: 720px;
+			}
+			code {
+				color: #fcd34d;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>Board space authoring helper</h1>
+		<p>
+			Click on the board image. Each click prints <code>[x, y]</code> in <strong>0–100</strong> coordinates matching
+			<code>viewBox="0 0 100 100"</code> in the game SVG (stretched to the image with <code>preserveAspectRatio="none"</code>).
+		</p>
+		<p>Copy vertices into <code>src/map/boardSpaces.ts</code> as a closed polygon array.</p>
+		<div id="board">
+			<img src="/board/western-legends-board.png" alt="Board" id="img" />
+		</div>
+		<div id="out">Vertices (click image):</div>
+		<script>
+			const img = document.getElementById('img');
+			const out = document.getElementById('out');
+			const pts = [];
+			img.addEventListener('click', (ev) => {
+				const r = img.getBoundingClientRect();
+				const x = ((ev.clientX - r.left) / r.width) * 100;
+				const y = ((ev.clientY - r.top) / r.height) * 100;
+				const pair = [Math.round(x * 100) / 100, Math.round(y * 100) / 100];
+				pts.push(pair);
+				out.textContent = 'Vertices (click image):\n' + pts.map((p) => `      [${p[0]}, ${p[1]}],`).join('\n');
+			});
+		</script>
+	</body>
+</html>
