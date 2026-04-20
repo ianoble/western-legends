@@ -1,19 +1,38 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { useGame } from '@engine/client';
-import type { WesternLegendsPlayer, WesternLegendsState } from '../logic/types';
+import { useGame, useToast } from '@engine/client';
+import {
+	maxDiscreteTurnSlotsForPlayer,
+	type BoardNpc,
+	type PlayerColor,
+	type StoryInPlayEntry,
+	type WesternLegendsPlayer,
+	type WesternLegendsState,
+} from '../logic/types';
+import { movementPointsForEquippedMount } from '../logic/movementCap';
 import { uiGamePhase } from '../logic/phaseUi';
-import { BOARD_IMAGE_PATH, POKER_ZONE, STORY_DECK_ZONE, STORY_DISCARD_ZONE } from '../map/locationMarkers';
-import { MARSHAL_TRACK_CENTERS, WANTED_TRACK_CENTERS, trackSlotIndex } from '../map/boardTracks';
+import { getStoryCardBackImageUrl, STORY_BACK_IMAGE_PATHS } from '../data/storyCards';
+import {
+	BOARD_IMAGE_PATH,
+	STORY_DISC_SPOTS_LEFT,
+	STORY_DISC_SPOTS_RIGHT,
+	STORY_PILE_LEFT_ZONE,
+	STORY_PILE_RIGHT_ZONE,
+} from '../map/locationMarkers';
+import { LEGEND_TRACK_CENTERS, MARSHAL_TRACK_CENTERS, WANTED_TRACK_CENTERS, trackSlotIndex } from '../map/boardTracks';
 import { DEFAULT_MOVEMENT_POINTS, getReachableSpaceIds, polygonCentroid } from '../map/boardGraph';
-import { BOARD_SPACES, BOARD_SPACES_BY_ID, BOARD_VIEWBOX_SIZE } from '../map/boardSpaces';
-import type { PlayerColor } from '../logic/types';
-import { IconMeeple } from '@tabler/icons-vue';
+import { BOARD_SPACES, BOARD_SPACES_BY_ID, BOARD_VIEWBOX_SIZE, SADDLE_UP_TOWN_SPACE_ID_SET } from '../map/boardSpaces';
+import { clearSaddleUpPick, useSaddleUpMapPick } from '../composables/useSaddleUpMapPick';
+import { IconMask, IconMeeple, IconUserShield } from '@tabler/icons-vue';
+
+/** NPC map tokens — high contrast on the board scan. */
+const NPC_SHERIFF_ICON_FILL = '#0a0a0a';
+const NPC_BANDIT_ICON_FILL = '#64748b';
 
 const auditMap = ref(false);
 
 const TRACK_DISK_FILL: Record<PlayerColor, string> = {
-	red: '#f87171',
+	red: '#dc2626',
 	blue: '#60a5fa',
 	green: '#4ade80',
 	yellow: '#facc15',
@@ -21,7 +40,17 @@ const TRACK_DISK_FILL: Record<PlayerColor, string> = {
 	orange: '#fb923c',
 };
 
+function hexWithAlpha(hex: string, alpha: number): string {
+	const m = hex.replace('#', '');
+	const r = Number.parseInt(m.slice(0, 2), 16);
+	const g = Number.parseInt(m.slice(2, 4), 16);
+	const b = Number.parseInt(m.slice(4, 6), 16);
+	return `rgba(${r},${g},${b},${alpha})`;
+}
+
 const { state, playerID, isMyTurn, move, ctx } = useGame<WesternLegendsState>();
+const { showToast } = useToast();
+const { saddleUpPickActive, saddleUpPickCardId, pokerBSlotCtxOk: mapPokerBSlotOk } = useSaddleUpMapPick();
 
 const G = computed(() => state.value);
 const me = computed(() => {
@@ -108,7 +137,17 @@ const svgOverlayStyle = computed(() => {
 const movementBudget = computed(() => {
 	if (!me.value) return 0;
 	const mp = me.value.movementPointsLeft;
-	return Number.isFinite(mp) && mp >= 0 ? mp : DEFAULT_MOVEMENT_POINTS;
+	const base = Number.isFinite(mp) && mp >= 0 ? mp : DEFAULT_MOVEMENT_POINTS;
+	const slotsLeft = (me.value.turnActions?.length ?? 0) < maxDiscreteTurnSlotsForPlayer(me.value);
+	if (
+		base === 0 &&
+		isMyTurn.value &&
+		mapPlayActive.value &&
+		slotsLeft
+	) {
+		return movementPointsForEquippedMount(me.value);
+	}
+	return base;
 });
 
 const reachable = computed(() => {
@@ -128,6 +167,19 @@ const reachableMoveTargets = computed(() => {
 	const hereKey = String(here);
 	return new Set([...r].filter((id) => String(id) !== hereKey));
 });
+
+/** Saddle Up: armed from sidebar — pick a city hex; invalid clicks toast. */
+const inSaddleMapPickMode = computed(
+	() =>
+		saddleUpPickActive.value &&
+		mapPlayActive.value &&
+		isMyTurn.value &&
+		mapPokerBSlotOk.value,
+);
+
+function isSaddleTownHighlight(id: string): boolean {
+	return inSaddleMapPickMode.value && SADDLE_UP_TOWN_SPACE_ID_SET.has(id);
+}
 
 // Pre-computed centroids so we don't call polygonCentroid in every render.
 const spaceCentroids = computed(() => Object.fromEntries(BOARD_SPACES.map((s) => [s.id, polygonCentroid(s.polygon)])));
@@ -191,17 +243,19 @@ const dotRadii = computed(() => {
 		rx: ready ? (r * 100) / width : r * 0.12,
 		ry: ready ? (r * 100) / height : r * 0.2,
 	});
-	// Smaller `ring` avoids huge viewBox radii on narrow widths (neighbor rings looked like they sat on your meeple).
-	return { hit: px(12), current: px(4), ring: px(2.5), idle: px(2) };
+	// `ring` = reachable-move highlights (filled discs on the map).
+	return { hit: px(12), current: px(4), ring: px(5.25), idle: px(2) };
 });
 
 function spaceDotRx(id: string): number {
 	if (standingOnSpace(id)) return dotRadii.value.idle.rx;
+	if (isSaddleTownHighlight(id)) return dotRadii.value.ring.rx;
 	if (mapPlayActive.value && isMyTurn.value && reachableMoveTargets.value.has(id)) return dotRadii.value.ring.rx;
 	return dotRadii.value.idle.rx;
 }
 function spaceDotRy(id: string): number {
 	if (standingOnSpace(id)) return dotRadii.value.idle.ry;
+	if (isSaddleTownHighlight(id)) return dotRadii.value.ring.ry;
 	if (mapPlayActive.value && isMyTurn.value && reachableMoveTargets.value.has(id)) return dotRadii.value.ring.ry;
 	return dotRadii.value.idle.ry;
 }
@@ -209,6 +263,7 @@ function spaceDotRy(id: string): number {
 /** Class for the invisible hit-area ellipse */
 function spaceDotClickClass(id: string): string {
 	if (standingOnSpace(id)) return 'pointer-events-none';
+	if (inSaddleMapPickMode.value) return 'cursor-pointer pointer-events-auto';
 	if (mapPlayActive.value && isMyTurn.value && reachableMoveTargets.value.has(id)) return 'cursor-pointer pointer-events-auto';
 	return 'pointer-events-none';
 }
@@ -217,50 +272,224 @@ function spaceDotClickClass(id: string): string {
 function spaceDotClass(id: string): string {
 	if (standingOnSpace(id)) return 'fill-none stroke-none';
 
+	if (isSaddleTownHighlight(id)) {
+		return 'stroke-none pointer-events-none transition-[filter] duration-150 hover:brightness-110';
+	}
+
 	if (mapPlayActive.value && isMyTurn.value && reachableMoveTargets.value.has(id)) {
-		// Spaces you can move to (not your current hex — meeple marks that).
-		return 'fill-none stroke-emerald-400/80 stroke-[1.5] hover:fill-emerald-400/20';
+		return 'stroke-none pointer-events-none transition-[filter] duration-150 hover:brightness-110';
 	}
 
 	return 'fill-none stroke-none';
 }
 
+function spaceDotFillStyle(id: string): Record<string, string> | undefined {
+	if (standingOnSpace(id)) return undefined;
+	if (isSaddleTownHighlight(id)) {
+		return { fill: 'rgba(45, 212, 191, 0.72)' };
+	}
+	if (
+		mapPlayActive.value &&
+		isMyTurn.value &&
+		reachableMoveTargets.value.has(id) &&
+		me.value &&
+		TRACK_DISK_FILL[me.value.color]
+	) {
+		return { fill: hexWithAlpha(TRACK_DISK_FILL[me.value.color], 0.92) };
+	}
+	return undefined;
+}
+
 function onSpacePolygonClick(id: string) {
-	if (!mapPlayActive.value || !isMyTurn.value || !reachableMoveTargets.value.has(id)) return;
+	if (!mapPlayActive.value || !isMyTurn.value) return;
+
+	if (inSaddleMapPickMode.value) {
+		const cid = saddleUpPickCardId.value;
+		if (cid != null && SADDLE_UP_TOWN_SPACE_ID_SET.has(id)) {
+			move('useCardAction', cid, id);
+			clearSaddleUpPick();
+			return;
+		}
+		showToast('Choose a town space', 'info');
+		return;
+	}
+
+	if (!reachableMoveTargets.value.has(id)) return;
 	move('moveToLocation', id);
 }
 
-const meeplePos = computed((): [number, number] | null => {
-	if (!me.value) return null;
-	const s = BOARD_SPACES_BY_ID[me.value.locationId];
-	if (!s) return null;
-	return polygonCentroid(s.polygon);
-});
-
-/** Same box as the SVG overlay — HTML meeple sits here (avoids nested SVG). */
+/** Same box as the SVG overlay — HTML meeples sit here (avoids nested SVG). */
 const meepleOverlayStyle = computed(() => svgOverlayStyle.value);
 
-const meepleIconStyle = computed(() => {
-	const p = meeplePos.value;
-	if (!p) return { display: 'none' as const };
-	const [cx, cy] = p;
-	return {
-		left: `${cx}%`,
-		top: `${cy}%`,
-		transform: 'translate(-50%, -50%)',
-	};
+/** Screen-px spread when multiple seated players share a hex (see track markers). */
+const MEEPLE_SPREAD_PX = 7;
+
+type BoardFigureMarker = {
+	key: string;
+	cx: number;
+	cy: number;
+	zIndex: number;
+	tag: 'player' | 'npc' | 'manInBlack';
+	/** Player seat color (players only). */
+	fill?: string;
+	playerId?: string;
+	npcKind?: BoardNpc['kind'];
+};
+
+function sortNpcsForHex(a: BoardNpc, b: BoardNpc): number {
+	if (a.kind !== b.kind) return a.kind === 'sheriff' ? -1 : 1;
+	return a.id.localeCompare(b.id);
+}
+
+const boardFigureMarkers = computed((): BoardFigureMarker[] => {
+	const players = G.value.players;
+	const centroids = spaceCentroids.value as Record<string, [number, number]>;
+
+	const seated =
+		players != null
+			? Object.entries(players)
+					.filter(([, pl]) => pl.characterId != null && BOARD_SPACES_BY_ID[pl.locationId])
+					.map(([pid, pl]) => ({ pid, pl, loc: pl.locationId }))
+			: [];
+
+	const npcs = Array.isArray(G.value.boardNpcs) ? G.value.boardNpcs.filter((n) => BOARD_SPACES_BY_ID[n.spaceId]) : [];
+	const mib = G.value.manInBlack;
+
+	const byLoc = new Map<
+		string,
+		{ npcs: BoardNpc[]; players: typeof seated }
+	>();
+
+	for (const row of seated) {
+		const bucket = byLoc.get(row.loc) ?? { npcs: [], players: [] };
+		bucket.players.push(row);
+		byLoc.set(row.loc, bucket);
+	}
+	for (const n of npcs) {
+		const bucket = byLoc.get(n.spaceId) ?? { npcs: [], players: [] };
+		bucket.npcs.push(n);
+		byLoc.set(n.spaceId, bucket);
+	}
+	if (mib && BOARD_SPACES_BY_ID[mib.locationId]) {
+		const bucket = byLoc.get(mib.locationId) ?? { npcs: [], players: [] };
+		(bucket as { npcs: BoardNpc[]; players: typeof seated; manInBlack?: true }).manInBlack = true;
+		byLoc.set(mib.locationId, bucket);
+	}
+
+	const { width, height, ready } = contentRect.value;
+	const spreadOk = ready && width > 0 && height > 0;
+	const sPx = MEEPLE_SPREAD_PX;
+	const sOx = spreadOk ? (sPx * 100) / width : 1.2;
+	const sOy = spreadOk ? (sPx * 100) / height : 1.2;
+
+	const out: BoardFigureMarker[] = [];
+	for (const [loc, bucket] of byLoc) {
+		const orderedNpcs = [...bucket.npcs].sort(sortNpcsForHex);
+		const orderedPlayers = [...bucket.players].sort((a, b) => a.pid.localeCompare(b.pid));
+		const hasMib = (bucket as { manInBlack?: true }).manInBlack === true && mib;
+		const occupants: (
+			| { t: 'npc'; npc: BoardNpc }
+			| { t: 'player'; pid: string; pl: WesternLegendsPlayer }
+			| { t: 'manInBlack'; color: WesternLegendsPlayer['color'] }
+		)[] = [
+			...orderedNpcs.map((npc) => ({ t: 'npc' as const, npc })),
+			...orderedPlayers.map((row) => ({ t: 'player' as const, pid: row.pid, pl: row.pl })),
+			...(hasMib ? [{ t: 'manInBlack' as const, color: mib!.color }] : []),
+		];
+		const n = occupants.length;
+		const base = centroids[loc];
+		if (!base) continue;
+
+		occupants.forEach((occ, j) => {
+			let ox = 0;
+			let oy = 0;
+			if (n > 1) {
+				const angle = (j * 2 * Math.PI) / n;
+				ox = Math.cos(angle) * sOx;
+				oy = Math.sin(angle) * sOy;
+			}
+			if (occ.t === 'npc') {
+				out.push({
+					key: `npc-${occ.npc.id}`,
+					tag: 'npc',
+					npcKind: occ.npc.kind,
+					cx: base[0] + ox,
+					cy: base[1] + oy,
+					zIndex: 0,
+				});
+				return;
+			}
+			if (occ.t === 'manInBlack') {
+				out.push({
+					key: 'man-in-black',
+					tag: 'manInBlack',
+					fill: TRACK_DISK_FILL[occ.color],
+					cx: base[0] + ox,
+					cy: base[1] + oy,
+					zIndex: 1,
+				});
+				return;
+			}
+			const isLocal = playerID.value != null && occ.pid === playerID.value;
+			out.push({
+				key: `player-${occ.pid}`,
+				tag: 'player',
+				playerId: occ.pid,
+				fill: TRACK_DISK_FILL[occ.pl.color],
+				cx: base[0] + ox,
+				cy: base[1] + oy,
+				zIndex: isLocal ? 2 : 1,
+			});
+		});
+	}
+	out.sort((a, b) => a.zIndex - b.zIndex || a.key.localeCompare(b.key));
+	return out;
 });
 
-const storyDeckN = computed(() => G.value.storyDeck?.length ?? 0);
-const storyDiscardN = computed(() => G.value.storyDiscard?.length ?? 0);
+function figureMarkerIconStyle(m: BoardFigureMarker) {
+	return {
+		left: `${m.cx}%`,
+		top: `${m.cy}%`,
+		transform: 'translate(-50%, -50%)',
+	};
+}
+
+const FALLBACK_STORY_BACK = STORY_BACK_IMAGE_PATHS.spend_80_town_single_action;
+
+/** Two piles (half the shuffled deck each). Percents are viewBox coords; rendered in {@link svgOverlayStyle} box. */
+const storyPilesUi = computed(() => {
+	const left = G.value.storyDeckLeft ?? [];
+	const right = G.value.storyDeckRight ?? [];
+	const topBack = (pile: string[]) => {
+		if (!pile.length) return FALLBACK_STORY_BACK;
+		const id = pile[pile.length - 1]!;
+		return getStoryCardBackImageUrl(id) ?? FALLBACK_STORY_BACK;
+	};
+	return [
+		{
+			key: 'story-pile-left',
+			xPct: STORY_PILE_LEFT_ZONE.xPct,
+			yPct: STORY_PILE_LEFT_ZONE.yPct,
+			backUrl: topBack(left),
+		},
+		{
+			key: 'story-pile-right',
+			xPct: STORY_PILE_RIGHT_ZONE.xPct,
+			yPct: STORY_PILE_RIGHT_ZONE.yPct,
+			backUrl: topBack(right),
+		},
+	];
+});
 
 type TrackMarker = { cx: number; cy: number; fill: string; pid: string };
 
 /** Target half-side in screen px; converted to viewBox using {@link contentRect} so squares stay square (see `dotRadii`). */
-const TRACK_WANTED_HALF_PX = 3.2;
-const TRACK_MARSHAL_HALF_PX = 3.55;
+const TRACK_WANTED_HALF_PX = 6;
+const TRACK_LEGEND_HALF_PX = 12;
+const TRACK_MARSHAL_HALF_PX = 6;
 /** Radius in screen px when multiple players share a track cell. */
-const TRACK_MARKER_SPREAD_PX = 2.5;
+const TRACK_MARKER_SPREAD_PX = 4.2;
+const TRACK_LEGEND_MARKER_SPREAD_PX = 8.2;
 /** Applied to the whole track-marker group (fill + stroke). */
 const TRACK_MARKER_GROUP_OPACITY = 0.62;
 
@@ -273,10 +502,65 @@ function trackRectHalfVB(halfPx: number): { hw: number; hh: number } {
 	return { hw: (halfPx * 100) / width, hh: (halfPx * 100) / height };
 }
 
+/** Neutral discs when only {@link StoryInPlayEntry.discs} is set (no per-slot player ids). */
+const STORY_DISC_LEGACY_FILL = '#64748b';
+const STORY_DISC_HALF_PX = 5;
+
+const storyDiscRectHalfVB = computed(() => trackRectHalfVB(STORY_DISC_HALF_PX));
+
+type StoryDiscMarker = { key: string; cx: number; cy: number; wPct: number; hPct: number; fill: string };
+
+/** `storyInPlay[0]` = left card, `[1]` = right; slots match {@link STORY_DISC_SPOTS_LEFT} / {@link STORY_DISC_SPOTS_RIGHT}. */
+const storyDiscMarkers = computed((): StoryDiscMarker[] => {
+	const rows = G.value.storyInPlay ?? [];
+	const players = G.value.players;
+	const { hw, hh } = storyDiscRectHalfVB.value;
+	const wPct = hw * 2;
+	const hPct = hh * 2;
+	const out: StoryDiscMarker[] = [];
+
+	function addForCard(row: StoryInPlayEntry | undefined, spots: typeof STORY_DISC_SPOTS_LEFT, keyPrefix: string) {
+		if (!row) return;
+		for (let i = 0; i < 3; i++) {
+			let fill: string | undefined;
+			if (row.discSlotPlayerIds !== undefined) {
+				const pid = row.discSlotPlayerIds[i];
+				if (pid != null && pid !== '') {
+					const pl = players?.[pid];
+					fill = pl ? TRACK_DISK_FILL[pl.color] : '#94a3b8';
+				}
+			} else if (i < row.discs) {
+				fill = STORY_DISC_LEGACY_FILL;
+			}
+			if (fill == null) continue;
+			const spot = spots[i];
+			if (!spot) continue;
+			const [cx, cy] = spot;
+			out.push({
+				key: `${keyPrefix}-${row.cardId}-${i}`,
+				cx,
+				cy,
+				wPct,
+				hPct,
+				fill,
+			});
+		}
+	}
+
+	addForCard(rows[0], STORY_DISC_SPOTS_LEFT, 'sdL');
+	addForCard(rows[1], STORY_DISC_SPOTS_RIGHT, 'sdR');
+	return out;
+});
+
 const wantedTrackRectHalfVB = computed(() => trackRectHalfVB(TRACK_WANTED_HALF_PX));
+const legendTrackRectHalfVB = computed(() => trackRectHalfVB(TRACK_LEGEND_HALF_PX));
 const marshalTrackRectHalfVB = computed(() => trackRectHalfVB(TRACK_MARSHAL_HALF_PX));
 
-function buildTrackMarkers(centers: readonly [number, number][], pointsFn: (p: WesternLegendsPlayer) => number): TrackMarker[] {
+function buildTrackMarkers(
+	centers: readonly [number, number][],
+	pointsFn: (p: WesternLegendsPlayer) => number,
+	spreadPx: number = TRACK_MARKER_SPREAD_PX,
+): TrackMarker[] {
 	const players = G.value.players;
 	if (!players || centers.length === 0) return [];
 	const seated = Object.entries(players).filter(([, pl]) => pl.characterId != null);
@@ -298,7 +582,7 @@ function buildTrackMarkers(centers: readonly [number, number][], pointsFn: (p: W
 		const n = list.length;
 		const { width, height, ready } = contentRect.value;
 		const spreadOk = ready && width > 0 && height > 0;
-		const sPx = TRACK_MARKER_SPREAD_PX;
+		const sPx = spreadPx;
 		const sOx = spreadOk ? (sPx * 100) / width : 0.75;
 		const sOy = spreadOk ? (sPx * 100) / height : 0.75;
 		list.forEach(([pid, pl], j) => {
@@ -322,6 +606,10 @@ function buildTrackMarkers(centers: readonly [number, number][], pointsFn: (p: W
 
 const wantedTrackMarkers = computed(() => buildTrackMarkers(WANTED_TRACK_CENTERS, (p) => p.wantedPoints ?? 0));
 
+const legendTrackMarkers = computed(() =>
+	buildTrackMarkers(LEGEND_TRACK_CENTERS, (p) => p.legendaryPoints ?? 0, TRACK_LEGEND_MARKER_SPREAD_PX),
+);
+
 const marshalTrackMarkers = computed(() =>
 	MARSHAL_TRACK_CENTERS.length === 9 ? buildTrackMarkers(MARSHAL_TRACK_CENTERS, (p) => p.marshalPoints ?? 0) : [],
 );
@@ -342,16 +630,6 @@ const marshalTrackMarkers = computed(() =>
 					@load="updateBoardOverlay"
 				/>
 				<svg class="absolute left-0 top-0" :style="svgOverlayStyle" :viewBox="viewBoxAttr" preserveAspectRatio="none" aria-hidden="true">
-					<defs>
-						<!--
-	Cut out a disk at the meeple so an adjacent hex’s movement ring (centered next door)
-							can’t paint over your pawn when ring radii are large in viewBox space on small widths.
-						-->
-						<mask id="wl-move-rings-meeple-cutout" maskContentUnits="userSpaceOnUse">
-							<rect width="100" height="100" fill="white" />
-							<circle v-if="meeplePos" :cx="meeplePos[0]" :cy="meeplePos[1]" r="3.4" fill="black" />
-						</mask>
-					</defs>
 					<g v-if="auditMap" class="pointer-events-none">
 						<ellipse
 							v-for="s in BOARD_SPACES"
@@ -396,7 +674,8 @@ const marshalTrackMarkers = computed(() =>
 							</text>
 						</g>
 					</g>
-					<g mask="url(#wl-move-rings-meeple-cutout)">
+					<!-- No SVG mask: filled move discs are large; a meeple cutout clipped neighbors into half-moons. Meeple is drawn in HTML above this SVG. -->
+					<g>
 						<g v-for="s in BOARD_SPACES" :key="s.id" @click="onSpacePolygonClick(s.id)">
 							<!-- invisible hit area — larger for easier clicking -->
 							<ellipse
@@ -415,12 +694,13 @@ const marshalTrackMarkers = computed(() =>
 								:rx="spaceDotRx(s.id)"
 								:ry="spaceDotRy(s.id)"
 								:class="spaceDotClass(s.id)"
-								class="pointer-events-none transition-[fill] duration-150"
+								:style="spaceDotFillStyle(s.id)"
+								class="pointer-events-none"
 								vector-effect="non-scaling-stroke"
 							/>
 						</g>
 					</g>
-					<!-- Wanted / Marshal tracks (not masked — corner of board) -->
+					<!-- Wanted / Legend / Marshal tracks (not masked) -->
 					<g class="pointer-events-none" :opacity="TRACK_MARKER_GROUP_OPACITY">
 						<rect
 							v-for="m in wantedTrackMarkers"
@@ -436,62 +716,108 @@ const marshalTrackMarkers = computed(() =>
 						/>
 						<rect
 							v-for="m in marshalTrackMarkers"
-							:key="'marshal-k-' + m.pid"
-							:x="m.cx - marshalTrackRectHalfVB.hw"
-							:y="m.cy - marshalTrackRectHalfVB.hh"
-							:width="marshalTrackRectHalfVB.hw * 2"
-							:height="marshalTrackRectHalfVB.hh * 2"
-							fill="none"
-							stroke="#000"
-							stroke-width="0.55"
-							vector-effect="non-scaling-stroke"
-						/>
-						<rect
-							v-for="m in marshalTrackMarkers"
 							:key="'marshal-' + m.pid"
 							:x="m.cx - marshalTrackRectHalfVB.hw"
 							:y="m.cy - marshalTrackRectHalfVB.hh"
 							:width="marshalTrackRectHalfVB.hw * 2"
 							:height="marshalTrackRectHalfVB.hh * 2"
-							fill="none"
-							:stroke="m.fill"
-							stroke-width="0.34"
+							:fill="m.fill"
+							stroke="#000"
+							stroke-width="0.38"
+							vector-effect="non-scaling-stroke"
+						/>
+					</g>
+					<g class="pointer-events-none">
+						<rect
+							v-for="m in legendTrackMarkers"
+							:key="'legend-' + m.pid"
+							:x="m.cx - legendTrackRectHalfVB.hw"
+							:y="m.cy - legendTrackRectHalfVB.hh"
+							:width="legendTrackRectHalfVB.hw * 2"
+							:height="legendTrackRectHalfVB.hh * 2"
+							:fill="m.fill"
+							stroke="#0f766e"
+							stroke-width="0.58"
 							vector-effect="non-scaling-stroke"
 						/>
 					</g>
 				</svg>
-				<!-- current player: board-game meeple (Tabler), same coordinate box as SVG -->
+				<!-- Story deck: two piles (half the deck each). Same pixel box as SVG so %-coords match the board bitmap. -->
 				<div
-					v-if="meeplePos && contentRect.ready"
-					class="pointer-events-none absolute left-0 top-0 text-amber-400 drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]"
-					:style="meepleOverlayStyle"
+					v-if="contentRect.ready"
+					class="pointer-events-none absolute z-[5]"
+					:style="svgOverlayStyle"
 					aria-hidden="true"
 				>
-					<div class="absolute" :style="meepleIconStyle">
-						<IconMeeple :size="26" stroke="2" class="text-amber-400" />
+					<div
+						v-for="pile in storyPilesUi"
+						:key="pile.key"
+						class="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2"
+						:style="{ left: `${pile.xPct}%`, top: `${pile.yPct}%` }"
+					>
+						<img
+							:src="pile.backUrl"
+							alt=""
+							class="block w-[min(7.5rem,16vw)] rounded-md object-cover shadow-lg ring-1 ring-black/35 aspect-[63/88]"
+						/>
 					</div>
+					<div
+						v-for="m in storyDiscMarkers"
+						:key="m.key"
+						class="pointer-events-none absolute z-[6] -translate-x-1/2 -translate-y-1/2 rounded-full border border-black/55 shadow-[0_1px_2px_rgba(0,0,0,0.55)]"
+						:style="{
+							left: `${m.cx}%`,
+							top: `${m.cy}%`,
+							width: `${m.wPct}%`,
+							height: `${m.hPct}%`,
+							backgroundColor: m.fill,
+						}"
+					/>
 				</div>
-			</div>
-
-			<div class="pointer-events-none absolute inset-0">
-				<div
-					class="pointer-events-none absolute max-w-[28%] -translate-x-1/2 -translate-y-1/2 rounded-md border border-amber-900/50 bg-slate-950/90 px-2 py-1 text-center shadow backdrop-blur-sm"
-					:style="{ left: `${STORY_DECK_ZONE.xPct}%`, top: `${STORY_DECK_ZONE.yPct}%` }"
-				>
-					<p class="text-[10px] font-medium uppercase tracking-wide text-amber-200/90">Story deck</p>
-					<p class="font-mono text-sm text-slate-100">{{ storyDeckN }}</p>
-				</div>
-				<div
-					class="pointer-events-none absolute max-w-[28%] -translate-x-1/2 -translate-y-1/2 rounded-md border border-slate-600/70 bg-slate-950/90 px-2 py-1 text-center shadow backdrop-blur-sm"
-					:style="{ left: `${STORY_DISCARD_ZONE.xPct}%`, top: `${STORY_DISCARD_ZONE.yPct}%` }"
-				>
-					<p class="text-[10px] font-medium uppercase tracking-wide text-slate-400">Story discard</p>
-					<p class="font-mono text-sm text-slate-100">{{ storyDiscardN }}</p>
-				</div>
+				<!-- Seated players + board NPCs; local player stacks above others when sharing a hex -->
+				<template v-if="contentRect.ready">
+					<div
+						v-for="mm in boardFigureMarkers"
+						:key="mm.key"
+						class="pointer-events-none absolute left-0 top-0 z-10 drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]"
+						:style="[meepleOverlayStyle, { zIndex: mm.zIndex }]"
+						aria-hidden="true"
+					>
+						<div
+							v-if="mm.tag === 'player'"
+							class="absolute text-current"
+							:style="{ ...figureMarkerIconStyle(mm), color: mm.fill }"
+						>
+							<IconMeeple :size="38" stroke="2.25" class="text-current" />
+						</div>
+						<div
+							v-else-if="mm.npcKind === 'sheriff'"
+							class="absolute text-current"
+							:style="{ ...figureMarkerIconStyle(mm), color: NPC_SHERIFF_ICON_FILL }"
+						>
+							<IconUserShield :size="34" stroke="2.1" class="text-current" />
+						</div>
+						<div
+							v-else-if="mm.tag === 'manInBlack'"
+							class="absolute text-current"
+							:title="'Man in Black'"
+							:style="{ ...figureMarkerIconStyle(mm), color: mm.fill }"
+						>
+							<IconMeeple :size="34" stroke="2" class="text-current ring-1 ring-black/40 rounded-full" />
+						</div>
+						<div
+							v-else
+							class="absolute text-current"
+							:style="{ ...figureMarkerIconStyle(mm), color: NPC_BANDIT_ICON_FILL }"
+						>
+							<IconMask :size="34" stroke="2.1" class="text-current" />
+						</div>
+					</div>
+				</template>
 			</div>
 		</div>
 		<p class="border-t border-slate-800/80 bg-slate-950/95 px-2 py-1.5 text-center text-[10px] text-slate-500">
-			Amber meeple: your space · Green: reachable ({{ movementBudget }} MP) · Filled squares: Wanted track (1–9) · Outline squares: Marshal track (1–9)
+			Meeples: seat colors · Reachable hexes (your turn): your color ({{ movementBudget }} MP) · Filled squares: Wanted (1–9) · Filled + teal stroke: Legend (1–30) · Filled squares: Marshal (1–9)
 		</p>
 	</div>
 </template>

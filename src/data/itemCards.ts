@@ -52,6 +52,33 @@ export const GENERAL_STORE_COPIES_PER_BASE_ITEM = 6;
 /** Base item ids sold at the General Store (same order as {@link BASE_GAME_ITEM_DEFS}). */
 export const GENERAL_STORE_BASE_ITEM_IDS: readonly string[] = BASE_GAME_ITEM_DEFS.map((d) => d.id);
 
+/**
+ * Short summaries for store buy buttons — aligned with this prototype’s rules, not a full rulebook.
+ * Keys match {@link ../logic/types#GENERAL_STORE_PRICES}.
+ */
+export const GENERAL_STORE_ITEM_TOOLTIPS: Record<string, string> = {
+	map: 'After prospecting, reroll one prospect die once as part of that same prospect action (Miners Map).',
+	mule: 'Mount: 2 movement points per move; carry up to 6 nuggets (base cap is 4).',
+	mustang: 'Mount: 4 movement points per move.',
+	provisions:
+		'B action (once per turn): discard Provisions to draw 1 poker card and remove 1 wound.',
+	revolver: 'Weapon: choose each turn for location duels (5-card poker hands).',
+	rifle:
+		'Weapon: duels — defender must discard 1 poker card or take 1 wound at fight start; in saloon poker you may peek the defender’s hole cards.',
+	shotgun: 'Weapon: duels — if you win, draw 1 poker card.',
+	hat: 'Misc: saloon winner +1 LP; +$10 gold when your hat triggers on some post-showdown card draws.',
+	whiskey:
+		'Buy: remove 1 wound. After you move onto another player’s hex, B action — discard Whiskey to give them 1 wound.',
+	revolver_upgrade:
+		'Upgrade (own Revolver): flip — in duels the defender may force you to downgrade one card; +1 LP when flipped.',
+	rifle_upgrade:
+		'Upgrade (own Rifle): flip — defender may downgrade one of your duel cards; +1 LP when flipped.',
+	shotgun_upgrade:
+		'Upgrade (own Shotgun): flip — win a duel to draw 1 poker card; +1 LP when flipped.',
+	mule_upgrade: 'Upgrade (own Mule): 4 MP per move; same raised nugget cap; +1 LP when flipped.',
+	mustang_upgrade: 'Upgrade (own Mustang): 5 MP per move; +2 LP when flipped.',
+};
+
 export function itemCardImageUrl(itemId: string): string {
   return `/images/item_${itemId}.png`;
 }

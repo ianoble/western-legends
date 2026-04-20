@@ -4,10 +4,15 @@ import {
   applyDefenderDowngradeChallengerOneCard,
   bestPokerScore,
   bestPokerScoreFromHandAndFlop,
+  bestPokerScoreFromHandAndFlopSaloon,
+  compareFightPlayedCardsWithRankPenalty,
   comparePokerHands,
+  comparePokerScores,
   compareThreeCardFight,
   decreaseRankByOne,
+  formatPokerScoreLabel,
   HAND_CATEGORY,
+  pickBestTwoForFlop,
   THREE_CARD_CATEGORY,
   rankOrder,
   scoreThreeCardFight,
@@ -23,6 +28,15 @@ describe('rankOrder', () => {
   it('ranks ace high', () => {
     expect(rankOrder('A')).toBe(14);
     expect(rankOrder('2')).toBe(2);
+  });
+});
+
+describe('formatPokerScoreLabel', () => {
+  it('labels common categories', () => {
+    const flush = bestPokerScore(pick(['A-hearts', 'J-hearts', '9-hearts', '4-hearts', '2-hearts']));
+    expect(formatPokerScoreLabel(flush)).toContain('Flush');
+    const straight = bestPokerScore(pick(['10-clubs', '9-diamonds', '8-spades', '7-hearts', '6-clubs']));
+    expect(formatPokerScoreLabel(straight)).toContain('Straight');
   });
 });
 
@@ -110,6 +124,58 @@ describe('bestPokerScoreFromHandAndFlop', () => {
     const flop = pick(['Q-hearts', 'J-hearts', '10-hearts']);
     const s = bestPokerScoreFromHandAndFlop(hand, flop);
     expect(s.category).toBe(HAND_CATEGORY.straightFlush);
+  });
+});
+
+describe('pickBestTwoForFlop', () => {
+  it('matches bestPokerScoreFromHandAndFlop strength', () => {
+    const hand = pick(['A-hearts', 'K-hearts', '2-clubs', '3-spades']);
+    const flop = pick(['Q-hearts', 'J-hearts', '10-hearts']);
+    const two = pickBestTwoForFlop(hand, flop);
+    expect(two).toHaveLength(2);
+    const fromPick = bestPokerScoreFromHandAndFlop(two, flop);
+    const fromAll = bestPokerScoreFromHandAndFlop(hand, flop);
+    expect(comparePokerScores(fromPick, fromAll)).toBe(0);
+  });
+
+  it('prefers first combination on exact tie', () => {
+    const hand = pick(['8-hearts', '8-diamonds', '7-clubs', '7-spades']);
+    const flop = pick(['2-clubs', '3-diamonds', '4-spades']);
+    const two = pickBestTwoForFlop(hand, flop);
+    const ids = new Set(two.map((c) => c.id));
+    expect(ids.has('8-hearts')).toBe(true);
+    expect(ids.has('8-diamonds')).toBe(true);
+  });
+});
+
+describe('compareFightPlayedCardsWithRankPenalty', () => {
+  it('Stick Em Up strength (−2 ranks) can flip K vs Q when defender is penalized', () => {
+    const challenger = pick(['Q-hearts'])[0]!;
+    const defender = pick(['K-spades'])[0]!;
+    // K − 2 = J (11); Q wins outright.
+    expect(compareFightPlayedCardsWithRankPenalty(challenger, defender, 0, 2)).toBeGreaterThan(0);
+  });
+
+  it('on effective rank tie, more-penalized card loses (e.g. A weakened to Q vs natural Q)', () => {
+    const challenger = pick(['Q-hearts'])[0]!;
+    const defender = pick(['A-spades'])[0]!;
+    // A (−2) = Q; ties natural Q — penalized card loses, not A♠ suit vs Q♥.
+    expect(compareFightPlayedCardsWithRankPenalty(challenger, defender, 0, 2)).toBeGreaterThan(0);
+  });
+
+  it('on effective rank tie with equal penalties, suit tiebreak still applies', () => {
+    const a = pick(['K-hearts'])[0]!;
+    const b = pick(['K-spades'])[0]!;
+    expect(compareFightPlayedCardsWithRankPenalty(a, b, 2, 2)).toBeLessThan(0);
+  });
+});
+
+describe('bestPokerScoreFromHandAndFlopSaloon (Cheat)', () => {
+  it('red 2 can count as missing rank for straight', () => {
+    const hand = pick(['2-hearts', '3-clubs']);
+    const flop = pick(['4-diamonds', '5-spades', '6-hearts']);
+    const s = bestPokerScoreFromHandAndFlopSaloon(hand, flop);
+    expect(s.category).toBe(HAND_CATEGORY.straight);
   });
 });
 

@@ -96,24 +96,56 @@ function rect(cx: number, cy: number, hw = 2.6, hh = 2.1): [number, number][] {
 
 export const BOARD_SPACES: MapBoardSpace[] = [
 	// MESITO'S POINT (outside Darkrock city)
-	{ id: 'mp-2', name: "Mesito's Point - Ranch (outside city)", polygon: rect(35.64, 22.2), neighbors: ['bh-a-2', 'mp-3'], actionKind: 'ranch' },
-	{ id: 'mp-3', name: "Mesito's Point - Cabaret (outside city)", polygon: rect(37.01, 26.56), neighbors: ['mp-2', 'mp-8', 'mp-5'], actionKind: 'cabaret' },
-	{ id: 'mp-4', name: '', polygon: rect(47.07, 16.94), neighbors: ['mp-5', 'tr-1'] },
-	{ id: 'mp-5', name: '', polygon: rect(49.02, 28.82), neighbors: ['mp-3', 'mp-4', 'dk-6'] },
-	{ id: 'mp-8', name: '', polygon: rect(32.13, 34.23), neighbors: ['bh-a-2', 'mp-3', 'dk-9', 'mp-9'] },
-	{ id: 'mp-9', name: '', polygon: rect(27.64, 35.43), neighbors: ['mp-8', 'ad-1'] },
+	{ id: 'mp-1', name: '', polygon: rect(40.92, 18.74), neighbors: ['mp-2', 'mp-3', 'mp-4', 'dk-6'] },
+	{
+		id: 'mp-2',
+		name: "Mesito's Point - Ranch (outside city)",
+		polygon: rect(35.64, 22.2),
+		neighbors: ['bh-a-2', 'mp-1', 'mp-3'],
+		actionKind: 'ranch',
+	},
+	{
+		id: 'mp-3',
+		name: "Mesito's Point - Cabaret (outside city)",
+		polygon: rect(37.01, 26.56),
+		neighbors: ['mp-1', 'mp-2', 'mp-8', 'dk-6', 'dk-8', 'dk-9'],
+		actionKind: 'cabaret',
+	},
+	{ id: 'mp-4', name: '', polygon: rect(47.07, 16.94), neighbors: ['mp-1', 'dk-6', 'mp-5', 'tr-1', 'bh-b-1'] },
+	{ id: 'mp-5', name: '', polygon: rect(49.02, 28.82), neighbors: ['tr-1', 'mp-3', 'mp-4', 'dk-6', 'dk-7'] },
+	{ id: 'mp-8', name: '', polygon: rect(32.13, 34.23), neighbors: ['bh-a-2', 'mp-3', 'dk-9', 'mp-9', 'ad-1'] },
+	{ id: 'mp-9', name: '', polygon: rect(27.64, 35.43), neighbors: ['mp-8', 'ad-1', 'bh-b-2'] },
 
 	// UPPER TRAIL CONNECTORS
-	{ id: 'tr-1', name: 'Sunny Hills - Mine', polygon: rect(53.79, 22.33), neighbors: ['mp-4', 'bh-b-1'], actionKind: 'prospectGold' },
+	{ id: 'tr-1', name: 'Sunny Hills - Mine', polygon: rect(53.79, 22.33), neighbors: ['mp-4', 'mp-5', 'bh-b-1'], actionKind: 'prospectGold' },
 
 	// APPROACH DARKROCK (`ad-*` — not in Darkrock city; do not use `dk-` prefix here)
-	{ id: 'ad-1', name: '', polygon: rect(29.59, 45.81), neighbors: ['dk-9', 'mp-9', 'ad-2', 'dk-3'] },
+	{ id: 'ad-1', name: '', polygon: rect(29.59, 45.81), neighbors: ['dk-9', 'mp-9', 'ad-2', 'dk-3', 'mp-8'] },
 	{ id: 'ad-2', name: '', polygon: rect(28.32, 54.08), neighbors: ['ad-1', 'dk-3', 'sv-1'] },
 
 	// DARKROCK CITY (`dk-3`..`dk-10`)
-	{ id: 'dk-3', name: 'Darkrock - Saloon', polygon: rect(36.39, 50.74), neighbors: ['ad-1', 'ad-2', 'dk-4'], actionKind: 'playPoker' },
-	{ id: 'dk-4', name: 'Darkrock - Cabaret', polygon: rect(41.7, 54.68), neighbors: ['dk-3', 'dk-5', 'sv-4'], actionKind: 'cabaret' },
-	{ id: 'dk-5', name: 'Darkrock - Bank', polygon: rect(47.09, 53.43), neighbors: ['dk-4', 'dk-10', 'sv-6'], actionKind: 'bank' },
+	{ id: 'dk-1', name: '', polygon: rect(44.24, 45.66), neighbors: ['dk-3', 'dk-4', 'dk-5', 'dk-7', 'dk-8', 'dk-10'] },
+	{
+		id: 'dk-3',
+		name: 'Darkrock - Saloon',
+		polygon: rect(36.39, 50.74),
+		neighbors: ['ad-1', 'ad-2', 'dk-4', 'dk-1', 'dk-9'],
+		actionKind: 'playPoker',
+	},
+	{
+		id: 'dk-4',
+		name: 'Darkrock - Cabaret',
+		polygon: rect(41.7, 54.68),
+		neighbors: ['dk-1', 'dk-3', 'dk-5', 'sv-2', 'sv-6'],
+		actionKind: 'cabaret',
+	},
+	{
+		id: 'dk-5',
+		name: 'Darkrock - Bank',
+		polygon: rect(47.09, 53.43),
+		neighbors: ['dk-1', 'dk-4', 'dk-10', 'sv-6', 'sv-8'],
+		actionKind: 'bank',
+	},
 	{
 		id: 'dk-6',
 		name: 'Darkrock - General Store',
@@ -132,111 +164,121 @@ export const BOARD_SPACES: MapBoardSpace[] = [
 		id: 'dk-8',
 		name: 'Darkrock - General Store',
 		polygon: rect(41.7, 37.09),
-		neighbors: ['dk-6', 'dk-7', 'dk-9'],
+		neighbors: ['dk-1', 'dk-6', 'dk-7', 'dk-9'],
 		actionKind: 'generalStore',
 	},
 	{
 		id: 'dk-9',
 		name: 'Darkrock - Sheriff',
 		polygon: rect(37.69, 37.6),
-		neighbors: ['dk-8', 'mp-8', 'ad-1'],
+		neighbors: ['ad-1', 'dk-3', 'dk-8', 'mp-3', 'mp-8'],
 	},
-	{ id: 'dk-10', name: '', polygon: rect(51.07, 45.36), neighbors: ['dk-5', 'ar-1', 'cj-1', 'bh-b-2'] },
+	{ id: 'dk-10', name: '', polygon: rect(51.07, 45.36), neighbors: ['dk-1', 'dk-5', 'ar-1', 'cj-1', 'bh-b-2'] },
 
-	// SPIKE'S VIEW - upper row
-	{ id: 'sv-1', name: '', polygon: rect(31.25, 63.85), neighbors: ['ad-2', 'bh-c-1', 'sv-1b'] },
-	/** Blank trail between sv-1 and the General Store (author point ~[38.28, 64.45]; not a POI). */
-	{ id: 'sv-1b', name: '', polygon: rect(38.28, 64.45, 2.5, 2.0), neighbors: ['sv-1', 'sv-4'] },
-	{
-		id: 'sv-4',
-		name: "Spike's View - General Store",
-		polygon: rect(43.0, 63.65, 2.4, 2.0),
-		neighbors: ['sv-1b', 'sv-5', 'sv-6', 'sv-7', 'dk-4'],
-		actionKind: 'generalStore',
-	},
-	{ id: 'sv-6', name: '', polygon: rect(45.12, 63.55), neighbors: ['sv-4', 'sv-7', 'sv-8', 'sv-9', 'dk-5'] },
-	{ id: 'sv-8', name: '', polygon: rect(51.27, 63.55), neighbors: ['sv-6', 'sv-9', 'sv-11', 'rs-1'] },
-	{ id: 'sv-11', name: '', polygon: rect(56.64, 64.3), neighbors: ['sv-8', 'sv-13', 'rs-1'] },
-
-	// SPIKE'S VIEW - lower row
-	{ id: 'sv-5', name: '', polygon: rect(35.64, 71.67), neighbors: ['bh-c-1', 'sv-3', 'sv-4', 'sv-7'] },
-	{ id: 'sv-7', name: '', polygon: rect(42.09, 71.67), neighbors: ['sv-4', 'sv-5', 'sv-6', 'sv-9'] },
-	{ id: 'sv-9', name: '', polygon: rect(48.24, 71.07), neighbors: ['sv-6', 'sv-7', 'sv-8', 'rs-1'] },
-	{ id: 'sv-13', name: '', polygon: rect(61.13, 72.73), neighbors: ['sv-11', 'cj-11', 'rs-1'] },
-
-	// SPIKE'S VIEW - bottom
+	// SPIKE'S VIEW
+	{ id: 'sv-1', name: '', polygon: rect(31.25, 63.85), neighbors: ['ad-2', 'dk-3', 'sv-5', 'bh-c-1', 'sv-2'] },
+	{ id: 'sv-2', name: '', polygon: rect(38.28, 64.45), neighbors: ['sv-1', 'dk-3', 'dk-4', 'sv-6', 'sv-7', 'sv-5'] },
 	{ id: 'sv-3', name: "Spike's View - Mine", polygon: rect(32.29, 81.5), neighbors: ['bh-c-1', 'sv-5'], actionKind: 'prospectGold' },
+	{ id: 'sv-5', name: '', polygon: rect(35.64, 71.67), neighbors: ['bh-c-1', 'sv-3', 'sv-7', 'sv-1', 'sv-2'] },
+	{ id: 'sv-6', name: '', polygon: rect(45.12, 63.55), neighbors: ['sv-2', 'sv-7', 'sv-8', 'sv-9', 'dk-4', 'dk-5'] },
+	{ id: 'sv-7', name: '', polygon: rect(42.09, 71.67), neighbors: ['sv-2', 'sv-5', 'sv-6', 'sv-9'] },
+	{ id: 'sv-8', name: '', polygon: rect(51.27, 63.55), neighbors: ['dk-5', 'sv-6', 'sv-9', 'sv-11', 'rs-1'] },
+	{ id: 'sv-9', name: '', polygon: rect(48.24, 71.07), neighbors: ['sv-6', 'sv-7', 'sv-8', 'rs-1'] },
+	{ id: 'sv-11', name: '', polygon: rect(56.64, 64.3), neighbors: ['sv-8', 'sv-13', 'rs-1', 'cj-2'] },
+	{ id: 'sv-13', name: '', polygon: rect(61.13, 72.73), neighbors: ['sv-11', 'cj-11', 'rs-1', 'cj-2'] },
 
 	// APPROACH RED FALLS (`ar-*` — not in Red Falls city; do not use `rf-` prefix here)
-	{ id: 'ar-1', name: 'Red Falls approach (outside city)', polygon: rect(65.43, 44.45), neighbors: ['dk-10', 'bh-b-2', 'cj-1', 'rf-2', 'rf-5b', 'rf-6a'] },
+	{
+		id: 'ar-1',
+		name: 'Red Falls approach (outside city)',
+		polygon: rect(65.43, 44.45),
+		neighbors: ['bh-b-2', 'cj-1', 'rf-4', 'rf-5b'],
+	},
 	// RED FALLS CITY (`rf-*`)
-	{ id: 'rf-2', name: 'Red Falls - Cabaret', polygon: rect(69.27, 36.36), neighbors: ['ar-1', 'rf-3', 'rf-5b', 'rf-6a'], actionKind: 'cabaret' },
-	{ id: 'rf-3', name: "Red Falls - Doctor's Office", polygon: rect(71.9, 27.07), neighbors: ['rf-2', 'rf-5a', 'sh-2'], actionKind: 'doctor' },
+	{
+		id: 'rf-3',
+		name: "Red Falls - Doctor's Office",
+		polygon: rect(71.9, 27.07),
+		neighbors: ['rf-4', 'rf-5a', 'sh-2', 'sh-1', 'rf-5b'],
+		actionKind: 'doctor',
+	},
+	{
+		id: 'rf-4',
+		name: 'Red Falls - Sheriff & Cabaret',
+		polygon: rect(70.8, 34.38),
+		neighbors: ['ar-1', 'rf-3', 'rf-5a', 'rf-5b'],
+		actionKind: 'cabaret',
+	},
 	{
 		id: 'rf-5a',
 		name: 'Red Falls - Saloon',
 		polygon: rect(77.05, 27.61),
-		neighbors: ['rf-3', 'rf-5b', 'rf-5c'],
+		neighbors: ['rf-3', 'rf-4', 'rf-5b', 'rf-5c', 'sh-3', 'sh-2'],
 		actionKind: 'playPoker',
 	},
 	{
 		id: 'rf-5b',
 		name: 'Red Falls - Saloon',
 		polygon: rect(72.17, 41.3),
-		neighbors: ['ar-1', 'rf-2', 'rf-5a', 'rf-5c'],
+		neighbors: ['ar-1', 'rf-4', 'rf-5a', 'rf-5c', 'cj-1', 'rf-6b', 'rf-6a', 'rf-3', 'cj-1', 'cj-3'],
 		actionKind: 'playPoker',
 	},
 	{
 		id: 'rf-5c',
 		name: 'Red Falls - Saloon',
 		polygon: rect(79.2, 34.98),
-		neighbors: ['rf-5a', 'rf-5b', 'rf-7'],
+		neighbors: ['rf-5a', 'rf-5b', 'cj-8', 'rf-6a'],
 		actionKind: 'playPoker',
 	},
 	{
 		id: 'rf-6a',
 		name: 'Red Falls - General Store',
 		polygon: rect(79.39, 39.49),
-		neighbors: ['ar-1', 'rf-2', 'rf-6b', 'rf-6c'],
+		neighbors: ['cj-7', 'rf-6b', 'rf-6c', 'rf-5c', 'rf-5b'],
 		actionKind: 'generalStore',
 	},
 	{
 		id: 'rf-6b',
 		name: 'Red Falls - General Store',
 		polygon: rect(77.15, 47.01),
-		neighbors: ['rf-6a', 'rf-6c'],
+		neighbors: ['rf-6a', 'rf-6c', 'cj-3', 'cj-5'],
 		actionKind: 'generalStore',
 	},
 	{
 		id: 'rf-6c',
 		name: 'Red Falls - General Store',
 		polygon: rect(83.59, 46.11),
-		neighbors: ['rf-6a', 'rf-6b', 'cj-7'],
+		neighbors: ['rf-6a', 'rf-6b', 'cj-5', 'cj-6', 'cj-7'],
 		actionKind: 'generalStore',
 	},
-	{ id: 'rf-7', name: '', polygon: rect(82.71, 29.12), neighbors: ['rf-5c', 'sh-3'] },
 
 	// SUNNY HILLS
-	{ id: 'sh-1', name: '', polygon: rect(66.31, 16.64), neighbors: ['bh-b-1', 'sh-2'] },
-	{ id: 'sh-2', name: '', polygon: rect(71.19, 16.94), neighbors: ['sh-1', 'sh-3', 'rf-3'] },
+	{ id: 'sh-1', name: '', polygon: rect(66.31, 16.64), neighbors: ['bh-b-1', 'sh-2', 'rf-3'] },
+	{ id: 'sh-2', name: '', polygon: rect(71.19, 16.94), neighbors: ['sh-1', 'sh-3', 'rf-3', 'rf-5a'] },
 	{
 		id: 'sh-3',
 		name: 'Sunny Hills - Ranch',
 		polygon: rect(81.34, 20.47),
-		neighbors: ['sh-2', 'bh-a-1', 'rf-7'],
+		neighbors: ['sh-2', 'bh-a-1', 'cj-8', 'rf-5a'],
 		actionKind: 'ranch',
 	},
 
 	// CLIFF JUNCTION
 	{ id: 'cj-1', name: '', polygon: rect(67.77, 54.23), neighbors: ['dk-10', 'bh-b-2', 'ar-1', 'cj-2', 'cj-3'] },
-	{ id: 'cj-2', name: '', polygon: rect(70.61, 61.9), neighbors: ['cj-1', 'cj-4', 'cj-11'] },
-	{ id: 'cj-3', name: '', polygon: rect(74.41, 54.98), neighbors: ['cj-1', 'cj-4', 'cj-5'] },
+	{
+		id: 'cj-2',
+		name: '',
+		polygon: rect(70.61, 61.9),
+		neighbors: ['cj-1', 'cj-3', 'cj-4', 'cj-10', 'cj-11', 'sv-11', 'sv-13'],
+	},
+	{ id: 'cj-3', name: '', polygon: rect(74.41, 54.98), neighbors: ['cj-1', 'cj-2', 'cj-4', 'cj-5'] },
 	{ id: 'cj-4', name: '', polygon: rect(76.86, 62.5), neighbors: ['cj-2', 'cj-3', 'cj-10'] },
 	{ id: 'cj-5', name: '', polygon: rect(81.35, 55.58), neighbors: ['cj-3', 'cj-6', 'cj-9', 'bh-c-2'] },
 	{ id: 'cj-6', name: '', polygon: rect(86.91, 52.73), neighbors: ['cj-5', 'cj-7', 'cj-9', 'bh-c-2'] },
 	{ id: 'cj-7', name: '', polygon: rect(86.82, 39.34), neighbors: ['cj-6', 'rf-6c'] },
+	{ id: 'cj-8', name: '', polygon: rect(82.71, 29.12), neighbors: ['rf-5c', 'sh-3'] },
 	{ id: 'cj-9', name: '', polygon: rect(79.88, 70.02), neighbors: ['cj-5', 'cj-6', 'bh-c-2', 'cj-10'] },
-	{ id: 'cj-10', name: '', polygon: rect(74.8, 73.03), neighbors: ['cj-4', 'cj-9', 'cj-11'] },
+	{ id: 'cj-10', name: '', polygon: rect(74.8, 73.03), neighbors: ['cj-2', 'cj-4', 'cj-9', 'cj-11'] },
 	{
 		id: 'cj-11',
 		name: 'Cliff Junction - Mine',
@@ -246,18 +288,27 @@ export const BOARD_SPACES: MapBoardSpace[] = [
 	},
 
 	// BANDIT HIDEOUTS
-	{ id: 'bh-a-1', name: '', polygon: rect(89.02, 19.63), neighbors: ['bh-a-2', 'sh-3'] },
-	{ id: 'bh-a-2', name: '', polygon: rect(28.08, 23.97), neighbors: ['bh-a-1', 'mp-2', 'mp-8'] },
-	{ id: 'bh-b-1', name: '', polygon: rect(57.3, 13.21), neighbors: ['bh-b-2', 'tr-1', 'sh-1'] },
-	{ id: 'bh-b-2', name: '', polygon: rect(58.73, 48.36), neighbors: ['bh-b-1', 'dk-10', 'ar-1', 'cj-1'] },
-	{ id: 'bh-c-1', name: '', polygon: rect(29.27, 72.52), neighbors: ['bh-c-2', 'sv-1', 'sv-3', 'sv-5'] },
-	{ id: 'bh-c-2', name: '', polygon: rect(84.96, 65.77), neighbors: ['bh-c-1', 'cj-5', 'cj-6', 'cj-9'] },
+	{ id: 'bh-a-1', name: '', polygon: rect(89.02, 19.63), neighbors: ['cj-8', 'sh-3'] },
+	{ id: 'bh-a-2', name: '', polygon: rect(28.08, 23.97), neighbors: ['mp-9', 'mp-2', 'mp-8'] },
+	{ id: 'bh-b-1', name: '', polygon: rect(57.3, 13.21), neighbors: ['mp-4', 'tr-1', 'sh-1'] },
+	{ id: 'bh-b-2', name: '', polygon: rect(58.73, 48.36), neighbors: ['dk-10', 'ar-1', 'cj-1'] },
+	{ id: 'bh-c-1', name: '', polygon: rect(29.27, 72.52), neighbors: ['sv-1', 'sv-5', 'sv-3'] },
+	{ id: 'bh-c-2', name: '', polygon: rect(84.96, 65.77), neighbors: ['cj-6', 'cj-5', 'cj-4', 'cj-9'] },
 
 	// RAIL STATION (only graph node for the physical station — use rs-1, not adjacent trail hexes)
-	{ id: 'rs-1', name: '', polygon: rect(57.67, 79.84), neighbors: ['sv-8', 'sv-9', 'sv-11', 'sv-13'] },
+	{ id: 'rs-1', name: '', polygon: rect(55.86, 73.78), neighbors: ['sv-8', 'sv-9', 'sv-11', 'sv-13'] },
 ];
 
 export const BOARD_SPACES_BY_ID: Record<string, MapBoardSpace> = Object.fromEntries(BOARD_SPACES.map((s) => [s.id, s]));
+
+/** Six bandit hideout graph nodes — one bandit NPC on each at setup. */
+export const BANDIT_HIDEOUT_SPACE_IDS = ['bh-a-1', 'bh-a-2', 'bh-b-1', 'bh-b-2', 'bh-c-1', 'bh-c-2'] as const;
+
+export const NPC_SHERIFF_ID = 'sheriff';
+
+export function banditNpcId(hideoutSpaceId: string): string {
+	return `bandit-${hideoutSpaceId}`;
+}
 
 /** Story / goal hooks: only these two ids represent “a city” on the board. */
 export type BoardCityId = 'darkrock' | 'redFalls';
@@ -288,6 +339,18 @@ export function isInsideRedFallsCity(spaceId: string): boolean {
 
 export function isInsideAnyBoardCity(spaceId: string): boolean {
 	return getBoardSpaceCity(spaceId) != null;
+}
+
+/** City hexes valid as Saddle Up (`useCardAction` destination) targets. */
+export const SADDLE_UP_TOWN_SPACE_IDS: readonly string[] = Object.keys(BOARD_SPACES_BY_ID).filter((id) => isInsideAnyBoardCity(id));
+export const SADDLE_UP_TOWN_SPACE_ID_SET = new Set(SADDLE_UP_TOWN_SPACE_IDS);
+
+/** Hex where arrested players are placed (all towns use the Darkrock jail on the digital board). */
+export const ARREST_JAIL_SPACE_ID = 'dk-9';
+
+/** Sheriff office hex per city (NPC placement / return after failed arrest). */
+export function getSheriffOfficeSpaceId(city: BoardCityId): string {
+	return city === 'darkrock' ? 'dk-9' : 'rf-4';
 }
 
 export const BOARD_STARTING_SPACE_ID = 'dk-3';

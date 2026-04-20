@@ -184,7 +184,7 @@ export const STARTER_CHARACTERS: StarterCharacterDef[] = [
 	{
 		id: 'wl-16',
 		name: 'Wild Bill Hickok',
-		startSpaceId: 'rf-2',
+		startSpaceId: 'rf-4',
 		startingGold: 10,
 		startingPokerCards: 3,
 		startingEquipment: '$10, 3 poker cards, revolver',

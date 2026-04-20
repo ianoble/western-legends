@@ -1,4 +1,47 @@
-import type { StandardCard, Rank } from '@engine/client';
+import type { StandardCard, Rank, Suit } from '@engine/client';
+
+/** Tie-break for single-card fight plays: spades highest (common high-card tiebreak). */
+function fightPlaySuitOrder(suit: Suit): number {
+  const o: Record<Suit, number> = { spades: 4, hearts: 3, diamonds: 2, clubs: 1 };
+  return o[suit];
+}
+
+/**
+ * Compare one revealed fight card each (high rank wins; same rank → higher suit wins).
+ * Positive if `a` wins; negative if `b` wins; 0 tie.
+ */
+export function compareFightPlayedCards(a: StandardCard, b: StandardCard): number {
+  const ra = rankOrder(a.rank);
+  const rb = rankOrder(b.rank);
+  if (ra !== rb) return ra - rb;
+  return fightPlaySuitOrder(a.suit) - fightPlaySuitOrder(b.suit);
+}
+
+/**
+ * Compare fight plays after optional rank penalties (e.g. Stick Em Up), without mutating cards.
+ * Effective rank order is floored at deuce (2).
+ *
+ * If effective ranks tie, the card with **more** rank penalty loses (Stick Em Up weakens the card;
+ * e.g. natural Q ties a K penalized by 1 — the penalized K loses, not suit on the physical K).
+ * If penalties are equal, uses the same suit tiebreak as {@link compareFightPlayedCards}.
+ */
+export function compareFightPlayedCardsWithRankPenalty(
+  a: StandardCard,
+  b: StandardCard,
+  penaltyStepsA: number,
+  penaltyStepsB: number,
+): number {
+  const pa = Math.max(0, penaltyStepsA);
+  const pb = Math.max(0, penaltyStepsB);
+  const ra = Math.max(2, rankOrder(a.rank) - pa);
+  const rb = Math.max(2, rankOrder(b.rank) - pb);
+  if (ra !== rb) return ra - rb;
+  if (pa !== pb) {
+    if (pa > pb) return -1;
+    if (pb > pa) return 1;
+  }
+  return fightPlaySuitOrder(a.suit) - fightPlaySuitOrder(b.suit);
+}
 
 /** Numeric rank for poker compare (A high). */
 export function rankOrder(rank: Rank): number {
@@ -71,6 +114,46 @@ export function comparePokerHands(handA: StandardCard[], handB: StandardCard[]):
   return comparePokerScores(bestPokerScore(handA), bestPokerScore(handB));
 }
 
+/**
+ * Best 2-card poker score (pair beats high card). For MIB Cabaret / short-showdown rules.
+ */
+/** Exported for MIB cabaret 2-card showdowns. */
+export function bestTwoCardPokerScore(cards: readonly StandardCard[]): PokerScore {
+  if (cards.length < 2) return { category: HAND_CATEGORY.highCard, kickers: [] };
+  const a = cards[0]!;
+  const b = cards[1]!;
+  const ra = rankOrder(a.rank);
+  const rb = rankOrder(b.rank);
+  if (ra === rb) return { category: HAND_CATEGORY.pair, kickers: [ra] };
+  const hi = Math.max(ra, rb);
+  const lo = Math.min(ra, rb);
+  return { category: HAND_CATEGORY.highCard, kickers: [hi, lo] };
+}
+
+/** Compare exactly two cards as a 2-card hand. Positive if first hand wins. */
+export function compareTwoCardPokerHands(a: readonly StandardCard[], b: readonly StandardCard[]): number {
+  return comparePokerScores(bestTwoCardPokerScore(a), bestTwoCardPokerScore(b));
+}
+
+/**
+ * Best 2-card score choosing any pair from `cards` (length ≥ 2). Used when the MIB proxy holds 4 cards.
+ */
+export function bestTwoCardPokerScoreFromPool(cards: readonly StandardCard[]): { score: PokerScore; pick: [StandardCard, StandardCard] } {
+  let best: PokerScore | null = null;
+  let bestPick: [StandardCard, StandardCard] = [cards[0]!, cards[1]!];
+  for (let i = 0; i < cards.length; i++) {
+    for (let j = i + 1; j < cards.length; j++) {
+      const pair = [cards[i]!, cards[j]!] as [StandardCard, StandardCard];
+      const s = bestTwoCardPokerScore(pair);
+      if (!best || comparePokerScores(s, best) > 0) {
+        best = s;
+        bestPick = pair;
+      }
+    }
+  }
+  return { score: best ?? { category: HAND_CATEGORY.highCard, kickers: [] }, pick: bestPick };
+}
+
 function orderToRank(o: number): Rank {
   if (o === 14) return 'A';
   if (o === 13) return 'K';
@@ -104,10 +187,18 @@ export function applyDefenderDowngradeChallengerOneCard(
   handChallenger: StandardCard[],
   handDefender: StandardCard[],
 ): { challenger: StandardCard[]; summary: string | null } {
-  const baseCmp = comparePokerHands(handChallenger, handDefender);
-  if (baseCmp <= 0) {
+  const cmpHands =
+    handChallenger.length === 1 && handDefender.length === 1
+      ? compareFightPlayedCards(handChallenger[0]!, handDefender[0]!)
+      : comparePokerHands(handChallenger, handDefender);
+  if (cmpHands <= 0) {
     return { challenger: handChallenger, summary: null };
   }
+
+  const compareAfter = (next: StandardCard[]): number =>
+    handChallenger.length === 1 && handDefender.length === 1
+      ? compareFightPlayedCards(next[0]!, handDefender[0]!)
+      : comparePokerHands(next, handDefender);
 
   for (const want of ['defenderWin', 'tie'] as const) {
     for (let i = 0; i < handChallenger.length; i++) {
@@ -124,7 +215,7 @@ export function applyDefenderDowngradeChallengerOneCard(
             } as StandardCard)
           : card,
       );
-      const cmp = comparePokerHands(next, handDefender);
+      const cmp = compareAfter(next);
       if (want === 'defenderWin' && cmp < 0) {
         return {
           challenger: next,
@@ -158,6 +249,86 @@ export function bestPokerScoreFromHandAndFlop(hand: StandardCard[], flop: Standa
     if (!best || comparePokerScores(s, best) > 0) best = s;
   }
   return best ?? { category: HAND_CATEGORY.highCard, kickers: [] };
+}
+
+/**
+ * The two hole cards that make the best 5-card hand with `flop` (first winning combo on ties).
+ */
+export function pickBestTwoForFlop(hand: StandardCard[], flop: StandardCard[]): StandardCard[] {
+  if (flop.length !== 3 || hand.length < 2) {
+    return hand.slice(0, 2);
+  }
+  const subs = combinations(hand, 2);
+  let best: PokerScore | null = null;
+  let bestTwo: StandardCard[] | null = null;
+  for (const two of subs) {
+    const s = scoreFiveCards([...two, ...flop]);
+    if (!best || comparePokerScores(s, best) > 0) {
+      best = s;
+      bestTwo = two;
+    }
+  }
+  return bestTwo ?? hand.slice(0, 2);
+}
+
+const SALOON_CHEAT_RANKS: Rank[] = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+
+function isSaloonCheatCard(c: StandardCard): boolean {
+  return c.rank === '2' && (c.suit === 'hearts' || c.suit === 'diamonds');
+}
+
+/** Expand a red 2 into rank variants for best-hand evaluation (printed card stays in hand). */
+function expandSaloonCheatRankVariants(c: StandardCard): StandardCard[] {
+  if (!isSaloonCheatCard(c)) return [c];
+  return SALOON_CHEAT_RANKS.map(
+    (rank) =>
+      ({
+        ...c,
+        rank,
+        value: standardCardValueForRank(rank),
+        id: `${rank}-${c.suit}`,
+      }) as StandardCard,
+  );
+}
+
+function bestPickTwoScoreForSaloon(hand: StandardCard[], flop: StandardCard[]): { score: PokerScore; two: StandardCard[] } {
+  if (flop.length !== 3 || hand.length < 2) {
+    return { score: { category: HAND_CATEGORY.highCard, kickers: [] }, two: hand.slice(0, 2) };
+  }
+  const subs = combinations(hand, 2);
+  let best: PokerScore | null = null;
+  let bestTwo: StandardCard[] | null = null;
+  for (const two of subs) {
+    const aOpts = expandSaloonCheatRankVariants(two[0]!);
+    const bOpts = expandSaloonCheatRankVariants(two[1]!);
+    for (const va of aOpts) {
+      for (const vb of bOpts) {
+        const s = scoreFiveCards([va, vb, ...flop]);
+        if (!best || comparePokerScores(s, best) > 0) {
+          best = s;
+          bestTwo = two;
+        }
+      }
+    }
+  }
+  return { score: best ?? { category: HAND_CATEGORY.highCard, kickers: [] }, two: bestTwo ?? hand.slice(0, 2) };
+}
+
+/**
+ * Saloon scoring: red 2 (Cheat) may count as any rank for the best 5-card hand with the flop.
+ */
+export function bestPokerScoreFromHandAndFlopSaloon(hand: StandardCard[], flop: StandardCard[]): PokerScore {
+  return bestPickTwoScoreForSaloon(hand, flop).score;
+}
+
+/** The two actual hole cards from the hand that achieve {@link bestPokerScoreFromHandAndFlopSaloon}. */
+export function pickBestTwoForFlopSaloon(hand: StandardCard[], flop: StandardCard[]): StandardCard[] {
+  return bestPickTwoScoreForSaloon(hand, flop).two;
+}
+
+/** Red 10 “Poker bonus” — hole card text triggers on a lost showdown. */
+export function saloonPickedHoleUsesRedTenBonus(holeCards: StandardCard[]): boolean {
+  return holeCards.some((c) => c.rank === '10' && (c.suit === 'hearts' || c.suit === 'diamonds'));
 }
 
 /** Category scale for 3-card “fight” draws (heist guard); separate numeric range from 5-card poker. */
@@ -288,4 +459,40 @@ function getStraightHigh(sortedUniqueDesc: number[]): number | null {
     if (ok) return top;
   }
   return null;
+}
+
+function kickerOrderToShortRank(o: number): string {
+  if (o === 14) return 'A';
+  if (o === 13) return 'K';
+  if (o === 12) return 'Q';
+  if (o === 11) return 'J';
+  if (o === 10) return '10';
+  return String(o);
+}
+
+/** Short English label for a 5-card {@link PokerScore} (Saloon / fight summaries). */
+export function formatPokerScoreLabel(score: PokerScore): string {
+  const hi = (i: number) =>
+    score.kickers[i] != null ? kickerOrderToShortRank(score.kickers[i]!) : '';
+  switch (score.category) {
+    case HAND_CATEGORY.straightFlush:
+      return `Straight flush (${hi(0)} high)`;
+    case HAND_CATEGORY.quads:
+      return `Four of a kind (${hi(0)}s)`;
+    case HAND_CATEGORY.fullHouse:
+      return `Full house (${hi(0)} full of ${hi(1)}s)`;
+    case HAND_CATEGORY.flush:
+      return 'Flush';
+    case HAND_CATEGORY.straight:
+      return `Straight (${hi(0)} high)`;
+    case HAND_CATEGORY.trips:
+      return `Three of a kind (${hi(0)}s)`;
+    case HAND_CATEGORY.twoPair:
+      return `Two pair (${hi(0)}s and ${hi(1)}s)`;
+    case HAND_CATEGORY.pair:
+      return `Pair of ${hi(0)}s`;
+    case HAND_CATEGORY.highCard:
+    default:
+      return score.kickers[0] != null ? `High card (${hi(0)})` : 'High card';
+  }
 }

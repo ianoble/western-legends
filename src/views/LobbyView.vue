@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useRouter } from "vue-router";
 import { saveSession, loadSession, clearSession } from "@engine/client";
 import { gameDef, PLAYER_COLORS, type PlayerColor } from "../logic/index";
@@ -112,9 +112,19 @@ function buildDefaultSetupData(): Record<string, unknown> {
 	for (const opt of gameDef.setupOptions ?? []) {
 		data[opt.id] = opt.default;
 	}
+	data.hostFaction = "outlaw";
+	data.manInBlack = gameDef.minPlayers === 2;
 	return data;
 }
 const setupData = ref<Record<string, unknown>>(buildDefaultSetupData());
+
+watch(numPlayers, (n, prev) => {
+	if (n !== 2) {
+		setupData.value.manInBlack = false;
+	} else if (prev !== 2) {
+		setupData.value.manInBlack = true;
+	}
+});
 
 const hostedMatchID = ref<string | null>(null);
 const hostedPlayers = ref<MatchPlayer[]>([]);
@@ -696,6 +706,57 @@ onUnmounted(stopPolling);
 								<p v-if="opt.description" class="text-xs text-slate-500 ml-14">{{ opt.description }}</p>
 							</div>
 						</template>
+
+						<!-- 2P Man in Black variant -->
+						<div v-if="numPlayers === 2" class="space-y-3 rounded-lg border border-slate-700/80 bg-slate-800/50 p-3">
+							<label class="flex items-center gap-3 cursor-pointer select-none">
+								<button
+									type="button"
+									role="switch"
+									:aria-checked="!!setupData.manInBlack"
+									class="relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-800"
+									:class="setupData.manInBlack ? 'bg-blue-600' : 'bg-slate-600'"
+									@click="setupData.manInBlack = !setupData.manInBlack"
+								>
+									<span
+										class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform"
+										:class="setupData.manInBlack ? 'translate-x-5' : 'translate-x-0'"
+									/>
+								</button>
+								<span class="text-sm font-medium">Man in Black (2P variant)</span>
+							</label>
+							<p class="text-xs text-slate-500 ml-14">MIB acts after both players pass; special duel/rob and endgame rules.</p>
+							<div v-if="setupData.manInBlack" class="space-y-1 ml-1">
+								<label class="block text-xs text-slate-500">You play as</label>
+								<div class="flex flex-wrap gap-2">
+									<button
+										type="button"
+										class="px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors"
+										:class="
+											setupData.hostFaction === 'outlaw'
+												? 'bg-amber-900/50 border-amber-600 text-amber-100'
+												: 'bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600'
+										"
+										@click="setupData.hostFaction = 'outlaw'"
+									>
+										Outlaw (Jesse James / Billy the Kid)
+									</button>
+									<button
+										type="button"
+										class="px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors"
+										:class="
+											setupData.hostFaction === 'marshal'
+												? 'bg-sky-900/50 border-sky-600 text-sky-100'
+												: 'bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600'
+										"
+										@click="setupData.hostFaction = 'marshal'"
+									>
+										Marshal (Wyatt Earp / Bass Reeves)
+									</button>
+								</div>
+								<p class="text-xs text-slate-500">Guest drafts the other faction.</p>
+							</div>
+						</div>
 
 						<!-- Your color (when creating) -->
 						<div class="space-y-2">

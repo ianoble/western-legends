@@ -3,29 +3,28 @@ import { computed, onMounted, onUnmounted, toRef } from 'vue';
 import { useGame, useTurnNotifications, loadSession, GameLog } from '@engine/client';
 import { gameDef } from '../logic/index';
 import { SERVER_URL } from '../config';
-import type { WesternLegendsState } from '../logic/types';
+import type { WesternLegendsGameOver, WesternLegendsState } from '../logic/types';
 import { uiGamePhase } from '../logic/phaseUi';
 import GameBoard from '../components/GameBoard.vue';
+import WlDiagnosticsPanel from '../components/WlDiagnosticsPanel.vue';
 import BoardMap from '../components/BoardMap.vue';
+import ManInBlackBoardOverlay from '../components/ManInBlackBoardOverlay.vue';
+import GeneralStoreStripPanel from '../components/GeneralStoreStripPanel.vue';
+import SaloonOverlay from '../components/SaloonOverlay.vue';
+import FightOverlay from '../components/FightOverlay.vue';
+import ProspectDiceOverlay from '../components/ProspectDiceOverlay.vue';
 import { BOARD_IMAGE_PATH } from '../map/locationMarkers';
 import { useBotPlayers } from '../composables/useBotPlayers';
+import { useHandTrayPeek } from '../composables/useHandTrayPeek';
 
 const props = defineProps<{ matchID: string; playerID: string }>();
 
 useBotPlayers(toRef(props, 'matchID'), toRef(props, 'playerID'));
 
+const { handTrayRetracted } = useHandTrayPeek();
+
 const game = useGame<WesternLegendsState>();
-const {
-	isConnected,
-	isMyTurn,
-	gameover,
-	reconnecting,
-	connect,
-	disconnect,
-	state,
-	playerID: clientPlayerId,
-	ctx,
-} = game;
+const { isConnected, isMyTurn, gameover, reconnecting, connect, disconnect, state, playerID: clientPlayerId, ctx } = game;
 
 const G = computed(() => state.value);
 
@@ -100,17 +99,13 @@ const statusMessage = computed(() => {
 });
 
 /** Full map + moves only after the character draft phase. */
-const showInteractiveMap = computed(
-	() => isConnected.value && matchRunning.value && gamePhase.value === 'play',
-);
+const showInteractiveMap = computed(() => isConnected.value && matchRunning.value && gamePhase.value === 'play');
 
 /**
  * Match running but map not unlocked yet (character draft, or phase not synced).
  * Anything other than explicit `play` keeps the interactive map hidden.
  */
-const showCharacterSetupBoard = computed(
-	() => isConnected.value && matchRunning.value && gamePhase.value !== 'play',
-);
+const showCharacterSetupBoard = computed(() => isConnected.value && matchRunning.value && gamePhase.value !== 'play');
 
 /** Connected, waiting for first full `G` (e.g. lobby seat before host starts). */
 const showBoardPreview = computed(() => isConnected.value && !gameLoaded.value);
@@ -125,15 +120,19 @@ const boardPanel = computed(() => ({
 	matchRunning: matchRunning.value,
 }));
 
-const showTurnNotifyRow = computed(
-	() =>
-		notificationsSupported.value &&
-		isConnected.value &&
-		matchRunning.value &&
-		gamePhase.value === 'play',
-);
+const showTurnNotifyRow = computed(() => notificationsSupported.value && isConnected.value && matchRunning.value && gamePhase.value === 'play');
 
 const turnNotifyNeedsOptIn = computed(() => notificationPermission.value !== 'granted');
+
+/** Fixed poker hand tray at bottom (Teleport target from GameBoard). */
+const showHandTray = computed(
+	() => gameLoaded.value && matchRunning.value && !reconnecting.value && gamePhase.value === 'play',
+);
+
+/** High-visibility strip while a MIB deck resolution is active (matches GameBoard MIB panel). */
+const mibCardInProgressBanner = computed(
+	() => matchRunning.value && gamePhase.value === 'play' && (G.value as WesternLegendsState | undefined)?.manInBlackPending != null,
+);
 
 onMounted(() => {
 	const session = loadSession(gameDef.id, props.matchID);
@@ -148,21 +147,30 @@ onUnmounted(() => {
 
 <template>
 	<div class="relative min-h-screen bg-[#0f0c09] text-slate-100">
-		<div class="mx-auto flex w-full max-w-[1920px] flex-col gap-4 px-2 py-3 sm:px-4 md:flex-row md:items-start md:gap-5 lg:gap-6 lg:px-6">
+		<SaloonOverlay />
+		<FightOverlay />
+		<ProspectDiceOverlay />
+		<div
+			class="mx-auto flex w-full max-w-[1920px] flex-col gap-4 px-2 py-3 sm:px-4 md:flex-row md:items-start md:gap-5 lg:gap-6 lg:px-6"
+			:class="showHandTray ? 'pb-[min(280px,32vh)]' : ''"
+		>
 			<!-- Board column: grows to fill width; side panel stays narrow on md+ -->
 			<aside class="order-2 w-full min-w-0 md:order-1 md:flex-1 md:pt-0">
-				<BoardMap v-if="showInteractiveMap" />
+				<template v-if="showInteractiveMap">
+					<div id="wl-general-store-strip-anchor" class="min-h-0 w-full">
+						<GeneralStoreStripPanel />
+					</div>
+					<div class="relative min-h-0 w-full">
+						<BoardMap />
+						<ManInBlackBoardOverlay />
+					</div>
+				</template>
 
 				<div
 					v-else-if="showCharacterSetupBoard"
 					class="relative overflow-hidden rounded-xl border border-amber-900/40 bg-slate-950 shadow-lg ring-1 ring-amber-900/20"
 				>
-					<img
-						:src="BOARD_IMAGE_PATH"
-						alt=""
-						class="block max-h-[min(92vh,1400px)] w-full object-contain opacity-35"
-						loading="lazy"
-					/>
+					<img :src="BOARD_IMAGE_PATH" alt="" class="block max-h-[min(92vh,1400px)] w-full object-contain opacity-35" loading="lazy" />
 					<div class="absolute inset-0 flex items-center justify-center bg-slate-950/55 px-4 text-center">
 						<p
 							class="max-w-md rounded-lg border border-amber-800/50 bg-slate-950/92 px-4 py-3 text-sm text-amber-100/95 shadow-lg backdrop-blur-sm"
@@ -200,6 +208,7 @@ onUnmounted(() => {
 					class="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-800/80 bg-slate-900/60 px-3 py-3"
 				>
 					<h1 class="text-lg font-semibold">{{ gameDef.displayName }}</h1>
+					<router-link to="/" class="inline-block text-sm text-slate-500 hover:text-slate-300">← Lobby</router-link>
 					<span
 						class="rounded-full px-2 py-0.5 text-xs"
 						:class="
@@ -236,6 +245,14 @@ onUnmounted(() => {
 					{{ statusMessage }}
 				</p>
 
+				<p
+					v-if="mibCardInProgressBanner"
+					class="mb-2 rounded-lg border border-orange-500/55 bg-orange-950/55 px-3 py-2.5 text-center text-sm font-semibold text-orange-100 shadow-md shadow-orange-950/25"
+					role="status"
+				>
+					Man in Black card in progress — see the orange panel below for details.
+				</p>
+
 				<div v-if="showTurnNotifyRow" class="mb-2 flex flex-wrap items-center justify-center gap-2 text-center text-xs text-slate-400">
 					<template v-if="turnNotifyNeedsOptIn">
 						<button
@@ -262,26 +279,35 @@ onUnmounted(() => {
 				/>
 
 				<div v-if="gameOver" class="mt-4 rounded-lg border border-amber-800/50 bg-slate-900/90 p-4 text-center text-sm">
-					<template v-if="gameOver.winner !== undefined">
+					<template v-if="'manInBlackWins' in gameOver && gameOver.manInBlackWins">
+						<p class="text-orange-200">The Man in Black wins.</p>
+					</template>
+					<template v-else-if="'winner' in gameOver">
 						<span v-if="gameOver.winner === playerID" class="text-emerald-400">You win!</span>
 						<span v-else class="text-slate-300">You lose.</span>
 					</template>
-					<span v-else class="text-slate-300">Draw.</span>
+					<template v-else-if="'sharedWinners' in gameOver && gameOver.sharedWinners.length > 0">
+						<p v-if="gameOver.sharedWinners.includes(playerID)" class="text-emerald-400">Shared victory!</p>
+						<p v-else class="text-slate-300">Match ended in a shared win.</p>
+						<p class="mt-1 text-xs text-slate-500">
+							Tied seats:
+							<span class="text-slate-400">{{ gameOver.sharedWinners.join(', ') }}</span>
+						</p>
+					</template>
 				</div>
 
-				<div class="mt-6 space-y-1 text-center text-xs text-slate-500">
-					<p>
-						Server
-						<code class="rounded bg-slate-900/80 px-1 py-0.5 text-slate-400">{{ SERVER_URL }}</code>
-						— set <code class="rounded bg-slate-900/80 px-1">VITE_SERVER_URL</code> if the client cannot connect.
-					</p>
-					<router-link to="/" class="inline-block text-sm text-slate-500 hover:text-slate-300">← Lobby</router-link>
-				</div>
-
+				<WlDiagnosticsPanel />
 				<div class="mt-4 min-h-0">
 					<GameLog />
 				</div>
 			</div>
 		</div>
+		<!-- Teleport target: must stay in DOM when play phase so GameBoard can mount hand into it -->
+		<div
+			id="game-hand-tray"
+			v-show="showHandTray"
+			class="pointer-events-none fixed bottom-0 left-0 right-0 z-30 flex items-end justify-center"
+			:class="handTrayRetracted ? 'min-h-[3.5rem]' : 'min-h-[220px]'"
+		/>
 	</div>
 </template>

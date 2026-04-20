@@ -30,7 +30,7 @@ describe('board space catalog', () => {
 		expect(getBoardSpaceCity('ad-1')).toBe(null);
 		expect(getBoardSpaceCity('ar-1')).toBe(null);
 		expect(getBoardSpaceCity('rf-3')).toBe('redFalls');
-		expect(isInsideRedFallsCity('rf-2')).toBe(true);
+		expect(isInsideRedFallsCity('rf-4')).toBe(true);
 		expect(isInsideRedFallsCity('rf-7')).toBe(true);
 		for (const s of BOARD_SPACES) {
 			const c = getBoardSpaceCity(s.id);

@@ -44,6 +44,12 @@ export const ITEM_UPGRADE_BASE: Record<string, string> = {
   mustang_upgrade: 'mustang',
 };
 
+/** Base General Store line id → upgrade card id, if that line has an upgrade. */
+export function upgradeItemIdForBase(baseId: string): string | null {
+  const found = (Object.entries(ITEM_UPGRADE_BASE) as [string, string][]).find(([, b]) => b === baseId);
+  return found?.[0] ?? null;
+}
+
 export function isMiscItemId(id: string): boolean {
   return MISC_ITEM_ID_SET.has(id);
 }

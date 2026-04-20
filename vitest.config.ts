@@ -1,13 +1,17 @@
-import path from 'node:path';
 import { defineConfig } from 'vitest/config';
+import vue from '@vitejs/plugin-vue';
+import tailwindcss from '@tailwindcss/vite';
+import path from 'node:path';
 
 export default defineConfig({
-  resolve: {
-    alias: {
-      '@engine': path.resolve(__dirname, '../noble-bg-engine/packages/engine/src'),
-    },
-  },
-  test: {
-    include: ['src/**/*.test.ts'],
-  },
+	plugins: [vue(), tailwindcss()],
+	resolve: {
+		dedupe: ['vue', 'pinia'],
+		alias: {
+			'@engine': path.resolve(__dirname, '../noble-bg-engine/packages/engine/src'),
+		},
+	},
+	test: {
+		environment: 'node',
+	},
 });
