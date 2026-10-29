@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { INVALID_MOVE } from '@engine/client';
 import type { Ctx } from 'boardgame.io';
 import { CATTLE_TOKEN_FACE_IDS, type WesternLegendsState } from './types';
-import { buildInitialCattlePiles } from './cattleTokens';
+import { buildInitialCattlePiles, normalizeCattleTokenColor } from './cattleTokens';
 import { buildInitialFightDeck } from './fightCards';
 import { buildInitialBoardNpcs, westernLegendsGameDef } from './game';
 import { GENERAL_STORE_BASE_ITEM_IDS, GENERAL_STORE_COPIES_PER_BASE_ITEM } from '../data/itemCards';
@@ -93,6 +93,19 @@ function buildRustleG(): WesternLegendsState {
 		history: [],
 	};
 }
+
+describe('normalizeCattleTokenColor', () => {
+	it('accepts canonical and common casing', () => {
+		expect(normalizeCattleTokenColor('blue')).toBe('blue');
+		expect(normalizeCattleTokenColor('Blue')).toBe('blue');
+		expect(normalizeCattleTokenColor('GREEN')).toBe('green');
+	});
+
+	it('rejects unknown values', () => {
+		expect(normalizeCattleTokenColor('red')).toBeNull();
+		expect(normalizeCattleTokenColor(1)).toBeNull();
+	});
+});
 
 describe('cattle token piles', () => {
 	const acquireCattle = westernLegendsGameDef.game.moves!.acquireCattle!;

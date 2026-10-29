@@ -217,15 +217,14 @@ const hasUsedFightThisTurn = computed(() => me.value?.turnActions?.includes('fig
 /** After a location action (mine, saloon, work, store, …), undo is not offered for this turn. */
 const hasUsedLocationActionThisTurn = computed(() => me.value?.turnActions?.includes('location') ?? false);
 /**
- * Server rejects B-slot card moves (and similar) during fights, Saloon rounds, sheriff encounters, etc.
- * Align sidebar + hand-tray affordances with {@link validateMove} so players do not hit INVALID_MOVE.
+ * Overlay / turn-structure checks for poker card plays (no fight, saloon, etc.).
+ * Does **not** include the 3-slot A/B/C/D budget — use {@link canTakeDiscrete} for that.
  */
-const pokerBSlotCtxOk = computed(() => {
+const pokerPlaySceneOk = computed(() => {
 	const p = me.value;
 	if (!isMyTurn.value || p == null || gamePhase.value !== 'play') return false;
 	if (p.needsStartTurnIncomeChoice === true) return false;
 	if (p.needsTurnWeaponMountChoice === true) return false;
-	if (turnSlotsUsed.value >= turnSlotsMax.value) return false;
 	if (activeFight.value != null) return false;
 	if (activeSaloonRound.value != null) return false;
 	if (activeSheriffEncounter.value != null) return false;
@@ -238,6 +237,11 @@ const pokerBSlotCtxOk = computed(() => {
 	if (pr != null && pid != null && pr.playerId === pid) return false;
 	return true;
 });
+/**
+ * Server rejects B-slot card moves (and similar) during fights, Saloon rounds, sheriff encounters, etc.
+ * Also requires a free discrete turn slot. Align with {@link validateMove}.
+ */
+const pokerBSlotCtxOk = computed(() => pokerPlaySceneOk.value && canTakeDiscrete.value);
 const turnActionsSummary = computed(() => {
 	const list = me.value?.turnActions;
 	if (!list?.length) return '';
@@ -278,9 +282,10 @@ const reputationSevenCardId = computed(() => {
 	return c?.id ?? null;
 });
 
+/** Reputation (7) is a reaction to Marshal/Wanted gained this turn — does not use a B/C/D slot. */
 const canPlayReputationSeven = computed(
 	() =>
-		pokerBSlotCtxOk.value &&
+		pokerPlaySceneOk.value &&
 		me.value!.pendingReputationSevenReaction === true &&
 		me.value!.usedReputationSevenThisTurn !== true &&
 		reputationSevenCardId.value != null,
@@ -1625,8 +1630,8 @@ const showTurnWait = computed(() => {
 						</button>
 					</div>
 				</div>
-				<div class="w-full border-t border-slate-700/80 mt-1 mb-2"></div>
-				<div class="mb-3 rounded-md border border-slate-700/80 bg-slate-900/50 px-3 py-2 text-xs text-slate-400">
+				<!-- <div class="w-full border-t border-slate-700/80 mt-1 mb-2"></div> -->
+				<div class="mb-3 mt-2 rounded-md border border-slate-700/80 bg-slate-900/50 px-3 py-2 text-xs text-slate-400">
 					<p class="font-medium text-slate-300">This turn - {{ turnSlotsUsed }}/{{ turnSlotsMax }} actions</p>
 					<p class="mt-1 text-slate-500">
 						Each turn you have up to three actions: movement, poker cards, fights, and location options (Work, stores, and other space

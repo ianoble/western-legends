@@ -29,8 +29,9 @@ const { verboseMoves, copyStatus, canCopy, copyBugReport } = useWlDiagnostics();
 		</div>
 		<p v-if="copyStatus === 'ok'" class="mt-1.5 text-emerald-400/90">Copied — paste into GitHub or a note.</p>
 		<p v-else-if="copyStatus === 'err'" class="mt-1.5 text-rose-300/90">
-			Could not copy (browser blocked clipboard). In dev, try
-			<code class="text-[10px]">await __wlCopyBugReport()</code> from this window.
+			Could not copy — check the browser console. Often clipboard is blocked on non-HTTPS (use localhost or HTTPS). In
+			dev you can run
+			<code class="text-[10px]">await __wlCopyBugReport()</code> in the console.
 		</p>
 		<p class="mt-2 text-[10px] leading-snug text-slate-600">
 			The boardgame.io debug panel is enabled in this app (<code class="text-slate-500">App.vue</code> →

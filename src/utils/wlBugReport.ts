@@ -3,6 +3,25 @@ import type { WesternLegendsState } from '../logic/types';
 const HISTORY_TAIL = 50;
 const TRAIL_TAIL = 40;
 
+/**
+ * Same output shape as `JSON.stringify(value, null, space)` but replaces cyclic references
+ * so bug-report bundles never throw (boardgame.io / Vue Proxies can introduce cycles).
+ */
+export function safeJsonStringify(value: unknown, space = 2): string {
+	const seen = new WeakSet<object>();
+	return JSON.stringify(
+		value,
+		(_k, v) => {
+			if (typeof v === 'object' && v !== null) {
+				if (seen.has(v as object)) return '[Circular]';
+				seen.add(v as object);
+			}
+			return v;
+		},
+		space,
+	);
+}
+
 /** JSON-serializable summary for GitHub / Discord bug reports (truncates secrets and large decks). */
 export function summarizeWesternLegendsForBugReport(
 	G: WesternLegendsState,
@@ -31,9 +50,19 @@ export function summarizeWesternLegendsForBugReport(
 			pendingWallopAfterMove: p.pendingWallopAfterMove,
 			pendingCattleMarshalOrWanted: p.pendingCattleMarshalOrWanted,
 			pendingBanditBountyChoice: p.pendingBanditBountyChoice,
-			hand: isViewer ? p.hand : `[${p.hand.length} cards — hidden from snapshot]`,
+			hand: isViewer ? p.hand : `[${p.hand?.length ?? 0} cards — hidden from snapshot]`,
 		};
 	}
+
+	const pokerDeck = G.pokerDeck ?? [];
+	const pokerDiscard = G.pokerDiscard ?? [];
+	const storyDeckLeft = G.storyDeckLeft ?? [];
+	const storyDeckRight = G.storyDeckRight ?? [];
+	const storyDiscard = G.storyDiscard ?? [];
+	const fightDeck = G.fightDeck ?? [];
+	const fightDiscard = G.fightDiscard ?? [];
+	const gameLog = G.gameLog ?? [];
+	const history = G.history ?? [];
 
 	return {
 		round: G.round,
@@ -48,16 +77,16 @@ export function summarizeWesternLegendsForBugReport(
 		cattlePiles: G.cattlePiles,
 		players,
 		deckSizes: {
-			pokerDeck: G.pokerDeck.length,
-			pokerDiscard: G.pokerDiscard.length,
-			storyDeckLeft: G.storyDeckLeft.length,
-			storyDeckRight: G.storyDeckRight.length,
-			storyDiscard: G.storyDiscard.length,
-			fightDeck: G.fightDeck.length,
-			fightDiscard: G.fightDiscard.length,
+			pokerDeck: pokerDeck.length,
+			pokerDiscard: pokerDiscard.length,
+			storyDeckLeft: storyDeckLeft.length,
+			storyDeckRight: storyDeckRight.length,
+			storyDiscard: storyDiscard.length,
+			fightDeck: fightDeck.length,
+			fightDiscard: fightDiscard.length,
 		},
-		trailLogTail: G.gameLog.slice(-TRAIL_TAIL),
-		moveHistoryTail: G.history.slice(-HISTORY_TAIL),
+		trailLogTail: gameLog.slice(-TRAIL_TAIL),
+		moveHistoryTail: history.slice(-HISTORY_TAIL),
 	};
 }
 
@@ -71,7 +100,7 @@ export function formatBugReportMarkdown(payload: {
 	ctx: Record<string, unknown>;
 	summary: Record<string, unknown>;
 }): string {
-	const body = JSON.stringify(payload, null, 2);
+	const body = safeJsonStringify(payload, 2);
 	return [
 		'### Western Legends — debug bundle',
 		'',

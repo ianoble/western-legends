@@ -33,8 +33,10 @@ import {
 	banditNpcId,
 	BOARD_SPACES_BY_ID,
 	BOARD_STARTING_SPACE_ID,
+	type MapBoardSpace,
 	getBoardSpaceCity,
 	getSheriffOfficeSpaceId,
+	isInsideAnyBoardCity,
 	isInsideRedFallsCity,
 	spaceLabelForLog,
 } from '../map/boardSpaces';
@@ -118,10 +120,12 @@ import {
 	CATTLE_TOKEN_FACE_IDS,
 	isLivingLegendCardId,
 } from './types';
-import { buildStoryCardDeck } from '../data/storyCards';
-import { buildInitialCattlePiles } from './cattleTokens';
+import { formatStoryCardForLog, getStoryCardByCardId } from '../data/storyCardContent';
+import { buildStoryCardDeck, getStoryCardBackMeta, type StoryBackKind } from '../data/storyCards';
+import { buildInitialCattlePiles, normalizeCattleTokenColor } from './cattleTokens';
 import { MARSHAL_TRACK_SPACE_REWARDS, WANTED_TRACK_SPACE_REWARDS } from './reputationTrackRewards';
 import { applyStoryCardResolved } from './storyCardEffects';
+import { contributorsForResolvedStoryRow } from './storyContributors';
 import {
 	buildInitialFightDeck,
 	fightCardFaceToSyntheticPokerCard,
@@ -643,6 +647,21 @@ function appendLog(G: WesternLegendsState, actorPlayerId: string, message: strin
 	if (G.gameLog.length > MAX_LOG) G.gameLog.shift();
 }
 
+/** +LP for story resolution; used by {@link applyStoryCardResolved} and tests. */
+export function grantLegendaryPointsForStory(
+	G: WesternLegendsState,
+	playerId: string,
+	delta: number,
+	logPid: string,
+	reason: string,
+): void {
+	if (delta <= 0) return;
+	const p = G.players[playerId];
+	if (!p) return;
+	p.legendaryPoints += delta;
+	appendLog(G, logPid, `${reason}: +${delta} LP (now ${p.legendaryPoints} LP)`);
+}
+
 function grantGold(p: WesternLegendsPlayer, delta: number): void {
 	p.gold = Math.min(MAX_PLAYER_GOLD, p.gold + delta);
 }
@@ -703,6 +722,46 @@ function applyReputationTrackSpaceRewards(
 }
 
 /**
+ * Adds one disc to the first {@link StoryInPlayEntry} whose card back matches {@link backKind}
+ * (marshal/wanted, wilderness, etc.). No-op if no matching row or at cap.
+ */
+function tryContributeStoryDiscForBackKind(
+	G: WesternLegendsState,
+	ctx: Pick<Ctx, 'currentPlayer' | 'numPlayers'> | undefined,
+	playerId: string,
+	backKind: StoryBackKind,
+): void {
+	if (!ctx || ctx.currentPlayer !== playerId) return;
+	migrateStoryInPlayIfMissing(G);
+	const numPlayers = ctx.numPlayers ?? Object.keys(G.players).length;
+	const cap = storyDiscsRequiredToResolve(numPlayers, isManInBlackVariant(G));
+	for (let si = 0; si < 2; si++) {
+		const row = G.storyInPlay[si];
+		if (row == null) continue;
+		if (getStoryCardBackMeta(row.cardId)?.backKind !== backKind) continue;
+		if (row.discs >= cap) return;
+		row.discs += 1;
+		const slotIndex = row.discs - 1;
+		const slotCount = 3;
+		if (!row.discSlotPlayerIds) {
+			row.discSlotPlayerIds = Array.from({ length: slotCount }, () => null);
+		} else {
+			while (row.discSlotPlayerIds.length < slotCount) row.discSlotPlayerIds.push(null);
+		}
+		row.discSlotPlayerIds[slotIndex] = playerId;
+		return;
+	}
+}
+
+function tryContributeStoryDiscMarshalOrWanted(
+	G: WesternLegendsState,
+	ctx: Pick<Ctx, 'currentPlayer' | 'numPlayers'> | undefined,
+	playerId: string,
+): void {
+	tryContributeStoryDiscForBackKind(G, ctx, playerId, 'gain_marshal_or_wanted_on_turn');
+}
+
+/**
  * Wanted gains: marshal and wanted are exclusive — any marshal progress is forfeited first, then this gain applies
  * from the current wanted position (usually 0 after a switch). Excess beyond space 9 becomes LP.
  *
@@ -715,7 +774,7 @@ export function grantWantedPoints(
 	delta: number,
 	logPid: string,
 	reason: string,
-	ctx?: Pick<Ctx, 'currentPlayer'>,
+	ctx?: Pick<Ctx, 'currentPlayer' | 'numPlayers'>,
 ): void {
 	if (delta <= 0) return;
 	const p = G.players[playerId];
@@ -742,6 +801,7 @@ export function grantWantedPoints(
 	if (toTrack > 0 && ctx?.currentPlayer === playerId) {
 		p.pendingReputationSevenReaction = true;
 	}
+	if (toTrack > 0) tryContributeStoryDiscMarshalOrWanted(G, ctx, playerId);
 }
 
 /** Marshal gains only if not wanted ({@link wantedPoints} must be 0). Excess beyond space 9 becomes LP. */
@@ -751,7 +811,7 @@ export function grantMarshalPoints(
 	delta: number,
 	logPid: string,
 	reason: string,
-	ctx?: Pick<Ctx, 'currentPlayer'>,
+	ctx?: Pick<Ctx, 'currentPlayer' | 'numPlayers'>,
 ): void {
 	if (delta <= 0) return;
 	const p = G.players[playerId];
@@ -778,6 +838,7 @@ export function grantMarshalPoints(
 	if (toTrack > 0 && ctx?.currentPlayer === playerId) {
 		p.pendingReputationSevenReaction = true;
 	}
+	if (toTrack > 0) tryContributeStoryDiscMarshalOrWanted(G, ctx, playerId);
 }
 
 export function performEndGameScoring(G: WesternLegendsState): void {
@@ -1191,14 +1252,27 @@ export function spawnBanditOnSpaceIfAllowed(G: WesternLegendsState, spaceId: str
 	return true;
 }
 
-/** TODO: call from story card resolution when card text specifies a spawn location. */
-function trySpawnBanditsFromStoryStub(_G: WesternLegendsState, _cardId: string): void {
-	// Intentionally empty — wire per-card effects when story deck is implemented.
+/** Log bandit spawns from indexed story data; map placement is still TODO. */
+function trySpawnBanditsFromStoryStub(G: WesternLegendsState, cardId: string): void {
+	const c = getStoryCardByCardId(cardId);
+	const n = c?.spawn_bandits ?? 0;
+	if (n <= 0) return;
+	appendLog(
+		G,
+		'0',
+		`story: ${formatStoryCardForLog(cardId)} — place ${n} bandit(s) (location not automated)`,
+	);
 }
 
-/** TODO: move sheriff when story text includes sheriff movement (pass target space id from CSV). */
-function tryMoveSheriffFromStoryStub(_G: WesternLegendsState, _cardId: string): void {
-	// Intentionally empty — wire per-card effects when story deck is implemented.
+/** Log when printed sheriff movement exists; pathfinding not automated. */
+function tryMoveSheriffFromStoryStub(G: WesternLegendsState, cardId: string): void {
+	const c = getStoryCardByCardId(cardId);
+	if (!c?.sheriff_move) return;
+	appendLog(
+		G,
+		'0',
+		`story: ${formatStoryCardForLog(cardId)} — Sheriff move (not automated)`,
+	);
 }
 
 function returnBanditFightCardsToDeckBottom(G: WesternLegendsState, f: FightState): void {
@@ -3008,8 +3082,46 @@ function clockwiseNextPlayerId(ctx: Ctx, G: WesternLegendsState, fromId: string)
 	return order[idx] ?? fromId;
 }
 
-/** After a move ends at `destId`, resolve cattle wrangle (`rs-1`) or rustle (different ranch). */
+/**
+ * Rustle: deliver opposing-color cattle at the wrong ranch (+WP, +gold, token face).
+ * Preconditions: `mp-2` with a blue token, or `sh-3` with a green token.
+ */
+function performRustleAtRanch(G: WesternLegendsState, ctx: Ctx, p: WesternLegendsPlayer, loc: MapBoardSpace): void {
+	migratePlayerItemsIfMissing(p);
+	const cc = p.carriedCattle;
+	if (cc == null) return;
+	migrateCattlePilesIfMissing(G);
+	migrateFightDeckIfMissing(G);
+	if (loc.id === 'mp-2' && normalizeCattleTokenColor(cc.color) === 'blue') {
+		const face = cc.face;
+		grantWantedPoints(G, ctx.currentPlayer, RUSTLE_WANTED_POINTS, ctx.currentPlayer, 'rustle (blue at green herd)', ctx);
+		grantGold(p, RUSTLE_BONUS_GOLD);
+		appendLog(
+			G,
+			ctx.currentPlayer,
+			`rustle: delivered Blue cattle at ${spaceLabelForLog(loc)} (+${RUSTLE_WANTED_POINTS} wanted, +${RUSTLE_BONUS_GOLD} gold)`,
+		);
+		p.carriedCattle = null;
+		applyCattleTokenFace(G, ctx.currentPlayer, p, face);
+		return;
+	}
+	if (loc.id === 'sh-3' && normalizeCattleTokenColor(cc.color) === 'green') {
+		const face = cc.face;
+		grantWantedPoints(G, ctx.currentPlayer, RUSTLE_WANTED_POINTS, ctx.currentPlayer, 'rustle (green at blue herd)', ctx);
+		grantGold(p, RUSTLE_BONUS_GOLD);
+		appendLog(
+			G,
+			ctx.currentPlayer,
+			`rustle: delivered Green cattle at ${spaceLabelForLog(loc)} (+${RUSTLE_WANTED_POINTS} wanted, +${RUSTLE_BONUS_GOLD} gold)`,
+		);
+		p.carriedCattle = null;
+		applyCattleTokenFace(G, ctx.currentPlayer, p, face);
+	}
+}
+
+/** After a move ends at `destId`, resolve cattle wrangle (`rs-1`) or rustle (opposing ranch). */
 function tryResolveCattleDelivery(G: WesternLegendsState, ctx: Ctx, p: WesternLegendsPlayer, destId: string): void {
+	migratePlayerItemsIfMissing(p);
 	if (p.carriedCattle == null) return;
 	const dest = BOARD_SPACES_BY_ID[destId];
 	if (!dest) return;
@@ -3018,6 +3130,10 @@ function tryResolveCattleDelivery(G: WesternLegendsState, ctx: Ctx, p: WesternLe
 		grantMarshalPoints(G, ctx.currentPlayer, WRANGLE_MARSHAL_POINTS, ctx.currentPlayer, 'wrangle', ctx);
 		grantGold(p, WRANGLE_BONUS_GOLD);
 		appendLog(G, ctx.currentPlayer, `wrangle: delivered cattle at Rail Station (+${WRANGLE_MARSHAL_POINTS} MP, +${WRANGLE_BONUS_GOLD} gold)`);
+		return;
+	}
+	if (destId === 'mp-2' || destId === 'sh-3') {
+		performRustleAtRanch(G, ctx, p, dest);
 	}
 }
 
@@ -3122,7 +3238,41 @@ function migrateMarshalPointsIfMissing(G: WesternLegendsState): void {
 }
 
 function migrateStoryInPlayIfMissing(G: WesternLegendsState): void {
-	if (!Array.isArray(G.storyInPlay)) G.storyInPlay = [];
+	const a = G.storyInPlay as unknown;
+	if (!Array.isArray(a)) {
+		G.storyInPlay = [null, null];
+		return;
+	}
+	if (a.length === 0) {
+		G.storyInPlay = [null, null];
+		return;
+	}
+	if (a.length === 1) {
+		G.storyInPlay = [(a[0] as StoryInPlayEntry | null) ?? null, null];
+		return;
+	}
+	G.storyInPlay = [
+		(a[0] as StoryInPlayEntry | null | undefined) ?? null,
+		(a[1] as StoryInPlayEntry | null | undefined) ?? null,
+	];
+}
+
+/** Draw next story card into empty slots (left deck → slot 0, right deck → slot 1). */
+function refillStorySlotsFromDecks(G: WesternLegendsState, logPid: string): void {
+	migrateStoryInPlayIfMissing(G);
+	migrateStoryDecksIfMissing(G);
+	for (let i = 0; i < 2; i++) {
+		if (G.storyInPlay[i] != null) continue;
+		const deck = i === 0 ? G.storyDeckLeft : G.storyDeckRight;
+		if (deck.length === 0) continue;
+		const id = deck.shift()!;
+		G.storyInPlay[i] = { cardId: id, discs: 0 };
+		appendLog(
+			G,
+			logPid,
+			`story: ${i === 0 ? 'left' : 'right'} in play (face down) — ${formatStoryCardForLog(id)}`,
+		);
+	}
 }
 
 function migrateStoryDecksIfMissing(G: WesternLegendsState): void {
@@ -3141,6 +3291,24 @@ function migrateStoryDecksIfMissing(G: WesternLegendsState): void {
 	if (!Array.isArray(G.storyDeckRight)) G.storyDeckRight = [];
 }
 
+/** First time entering play: deal one story card from each draw pile to the in-play slots (face down on the board). */
+function dealInitialFaceUpStoryCardsIfEmpty(G: WesternLegendsState): void {
+	migrateStoryInPlayIfMissing(G);
+	migrateStoryDecksIfMissing(G);
+	if (G.storyInPlay[0] != null || G.storyInPlay[1] != null) return;
+	if (G.storyDeckLeft.length === 0 || G.storyDeckRight.length === 0) return;
+	const idLeft = G.storyDeckLeft.shift()!;
+	const idRight = G.storyDeckRight.shift()!;
+	G.storyInPlay[0] = { cardId: idLeft, discs: 0 };
+	G.storyInPlay[1] = { cardId: idRight, discs: 0 };
+	const logPid = Object.keys(G.players)[0] ?? '0';
+	appendLog(
+		G,
+		logPid,
+		`story: in play (face down) — ${formatStoryCardForLog(idLeft)} / ${formatStoryCardForLog(idRight)}`,
+	);
+}
+
 /** Wanted track rows1–3 (points 1–3 / 4–6 / 7–9): LP gained at end of turn while wanted. */
 function wantedTrackRowLpGain(wantedPoints: number): number {
 	return trackRowLpGainForReputation(wantedPoints);
@@ -3148,24 +3316,57 @@ function wantedTrackRowLpGain(wantedPoints: number): number {
 
 function resolveStoriesAtEndOfTurn(G: WesternLegendsState, ctx: Ctx, actingPlayerId: string): void {
 	migrateManInBlackIfMissing(G);
-	const need = storyDiscsRequiredToResolve(ctx.numPlayers, isManInBlackVariant(G));
-	const kept: StoryInPlayEntry[] = [];
-	for (const row of G.storyInPlay) {
-		if (row.discs >= need) {
-			trySpawnBanditsFromStoryStub(G, row.cardId);
-			tryMoveSheriffFromStoryStub(G, row.cardId);
-			applyStoryCardResolved(G, ctx, row.cardId, actingPlayerId, {
+	migrateStoryInPlayIfMissing(G);
+	const numPlayers =
+		ctx.numPlayers != null && ctx.numPlayers > 0 ? ctx.numPlayers : Object.keys(G.players).length;
+	const need = storyDiscsRequiredToResolve(numPlayers, isManInBlackVariant(G));
+	const flipReveals: { slotIndex: 0 | 1; cardId: string }[] = [];
+	const next: [StoryInPlayEntry | null, StoryInPlayEntry | null] = [
+		G.storyInPlay[0],
+		G.storyInPlay[1],
+	];
+	for (let i = 0; i < 2; i++) {
+		const row = next[i];
+		if (row == null) continue;
+		if (row.discs < need) continue;
+		flipReveals.push({ slotIndex: i as 0 | 1, cardId: row.cardId });
+		const slotIndex = i as 0 | 1;
+		const contributors = contributorsForResolvedStoryRow(row, need);
+		if (row.discs >= need && row.discSlotPlayerIds == null) {
+			appendLog(
+				G,
+				actingPlayerId,
+				'story: contributors unknown (legacy disc tracking) — printed effects skipped',
+			);
+		}
+		trySpawnBanditsFromStoryStub(G, row.cardId);
+		tryMoveSheriffFromStoryStub(G, row.cardId);
+		applyStoryCardResolved(
+			G,
+			ctx,
+			{ row, slotIndex, needDiscs: need, contributors, actingPlayerId },
+			{
 				grantMarshalPoints: (pid, d, log, r) => grantMarshalPoints(G, pid, d, log, r, ctx),
 				grantWantedPoints: (pid, d, log, r) => grantWantedPoints(G, pid, d, log, r, ctx),
+				grantLegendaryPoints: (pid, d, log, r) => grantLegendaryPointsForStory(G, pid, d, log, r),
 				appendLog,
-			});
-			G.storyDiscard.push(row.cardId);
-			appendLog(G, actingPlayerId, `story resolved: ${row.cardId} (${row.discs} discs, need ${need})`);
-		} else {
-			kept.push(row);
-		}
+			},
+		);
+		G.storyDiscard.push(row.cardId);
+		appendLog(
+			G,
+			actingPlayerId,
+			`story resolved: ${formatStoryCardForLog(row.cardId)} (${row.discs} discs, need ${need})`,
+		);
+		next[i] = null;
 	}
-	G.storyInPlay = kept;
+	G.storyInPlay = next;
+	if (flipReveals.length > 0) {
+		G.storyResolvedReveal = { reveals: flipReveals };
+	} else {
+		delete G.storyResolvedReveal;
+	}
+	refillStorySlotsFromDecks(G, actingPlayerId);
 }
 
 function parsePassDiscardIds(discardIds: unknown): string[] | null {
@@ -3268,16 +3469,20 @@ function migratePlayerItemsIfMissing(p: WesternLegendsPlayer): void {
 	}
 
 	if (typeof p.carriedCattle === 'string') {
-		const s = p.carriedCattle;
-		if (s === 'green' || s === 'blue') {
-			p.carriedCattle = { color: s, face: CATTLE_LEGACY_DEFAULT_FACE };
+		const col = normalizeCattleTokenColor(p.carriedCattle);
+		if (col != null) {
+			p.carriedCattle = { color: col, face: CATTLE_LEGACY_DEFAULT_FACE };
 		} else {
 			p.carriedCattle = null;
 		}
 	} else if (p.carriedCattle != null) {
 		const cc = p.carriedCattle;
+		const col = normalizeCattleTokenColor(cc.color);
+		if (col != null) {
+			cc.color = col;
+		}
 		if (
-			(cc.color !== 'green' && cc.color !== 'blue') ||
+			col == null ||
 			typeof cc.face !== 'string' ||
 			!(CATTLE_TOKEN_FACE_IDS as readonly string[]).includes(cc.face)
 		) {
@@ -3609,6 +3814,7 @@ function moveUseCardAction({ G, ctx, events }: WLCtx, cardIdArg: unknown, extraA
 			p.locationId = dest;
 			p.generalStoreVisitPaidLocationId = null;
 			appendLog(G, ctx.currentPlayer, `Saddle Up: moved to ${spaceLabelForLog(BOARD_SPACES_BY_ID[dest]!)}`);
+			tryResolveCattleDelivery(G, ctx, p, dest);
 			break;
 		}
 		case 'manhunt': {
@@ -3647,7 +3853,7 @@ function moveUseCardAction({ G, ctx, events }: WLCtx, cardIdArg: unknown, extraA
 	}
 }
 
-/** B — Reputation (7): after you gained Marshal/Wanted this turn, +1 LP (once per turn). */
+/** B — Reputation (7): reaction after you gained Marshal/Wanted this turn; +1 LP (once per turn). Does not consume an A/B/C/D slot. */
 function movePlayReputationSeven({ G, ctx }: WLCtx, cardIdArg: unknown) {
 	if (ctx.phase !== 'play') return INVALID_MOVE;
 	const p = G.players[ctx.currentPlayer];
@@ -3657,12 +3863,8 @@ function movePlayReputationSeven({ G, ctx }: WLCtx, cardIdArg: unknown) {
 	if (p.usedReputationSevenThisTurn === true) return INVALID_MOVE;
 	if (typeof cardIdArg !== 'string' || !cardIdArg.startsWith('7-')) return INVALID_MOVE;
 	if (!pokerCardHasTiming(cardIdArg, 'after_marshal_wanted_on_your_turn')) return INVALID_MOVE;
-	if (!takeDiscreteTurnSlot(p, 'card')) return INVALID_MOVE;
 	const card = pullCardFromHandById(p, cardIdArg);
-	if (!card) {
-		revertDiscreteTurnSlot(p);
-		return INVALID_MOVE;
-	}
+	if (!card) return INVALID_MOVE;
 	G.pokerDiscard.push(card);
 	p.usedReputationSevenThisTurn = true;
 	delete p.pendingReputationSevenReaction;
@@ -4166,19 +4368,8 @@ function moveAcquireCattle({ G, ctx }: WLCtx) {
 			appendLog(G, ctx.currentPlayer, `picked up Green cattle at ${spaceLabelForLog(loc)}`);
 			return;
 		}
-		if (p.carriedCattle.color === 'blue') {
-			const face = p.carriedCattle.face;
-			grantWantedPoints(G, ctx.currentPlayer, RUSTLE_WANTED_POINTS, ctx.currentPlayer, 'rustle (blue at green herd)', ctx);
-			grantGold(p, RUSTLE_BONUS_GOLD);
-			appendLog(
-				G,
-				ctx.currentPlayer,
-				`rustle: delivered Blue cattle at ${spaceLabelForLog(loc)} (+${RUSTLE_WANTED_POINTS} wanted, +${RUSTLE_BONUS_GOLD} gold)`,
-			);
-			p.carriedCattle = null;
-			applyCattleTokenFace(G, ctx.currentPlayer, p, face);
-			return;
-		}
+		performRustleAtRanch(G, ctx, p, loc);
+		if (p.carriedCattle === null) return;
 		revertDiscreteTurnSlot(p);
 		return INVALID_MOVE;
 	}
@@ -4195,19 +4386,8 @@ function moveAcquireCattle({ G, ctx }: WLCtx) {
 			appendLog(G, ctx.currentPlayer, `picked up Blue cattle at ${spaceLabelForLog(loc)}`);
 			return;
 		}
-		if (p.carriedCattle.color === 'green') {
-			const face = p.carriedCattle.face;
-			grantWantedPoints(G, ctx.currentPlayer, RUSTLE_WANTED_POINTS, ctx.currentPlayer, 'rustle (green at blue herd)', ctx);
-			grantGold(p, RUSTLE_BONUS_GOLD);
-			appendLog(
-				G,
-				ctx.currentPlayer,
-				`rustle: delivered Green cattle at ${spaceLabelForLog(loc)} (+${RUSTLE_WANTED_POINTS} wanted, +${RUSTLE_BONUS_GOLD} gold)`,
-			);
-			p.carriedCattle = null;
-			applyCattleTokenFace(G, ctx.currentPlayer, p, face);
-			return;
-		}
+		performRustleAtRanch(G, ctx, p, loc);
+		if (p.carriedCattle === null) return;
 		revertDiscreteTurnSlot(p);
 		return INVALID_MOVE;
 	}
@@ -4433,12 +4613,22 @@ function movePass({ G, ctx, events }: WLCtx, discardIdsArg?: unknown) {
 	if (p.pendingBanditBountyChoice) return INVALID_MOVE;
 	migrateStoryInPlayIfMissing(G);
 	migrateStoryDecksIfMissing(G);
-	resolveStoriesAtEndOfTurn(G, ctx, ctx.currentPlayer);
 
 	const maxH = maxPokerHandSize(p);
 	const parsed = parsePassDiscardIds(discardIdsArg);
 	if (parsed === null) return INVALID_MOVE;
 	if (!validatePassDiscards(p, maxH, parsed)) return INVALID_MOVE;
+
+	/**
+	 * End-of-turn story steps run only after pass (hand trim) is valid — otherwise boardgame.io rolls the
+	 * whole move back and story resolution would be lost.
+	 */
+	/** Wilderness story back: end turn outside Darkrock / Red Falls city hexes (see {@link isInsideAnyBoardCity}). */
+	if (!isInsideAnyBoardCity(p.locationId)) {
+		tryContributeStoryDiscForBackKind(G, ctx, ctx.currentPlayer, 'end_turn_outside_town');
+	}
+	resolveStoriesAtEndOfTurn(G, ctx, ctx.currentPlayer);
+
 	if (parsed.length > 0) discardVisibleCardsFromHand(G, ctx.currentPlayer, p, parsed, 'end_of_turn_trim');
 
 	const lpGain = wantedTrackRowLpGain(p.wantedPoints);
@@ -4722,7 +4912,7 @@ const WesternLegendsGame: Game<WesternLegendsState> = {
 				};
 			})(),
 			storyDiscard: [],
-			storyInPlay: [],
+			storyInPlay: [null, null],
 			boardNpcs: buildInitialBoardNpcs(),
 			cattlePiles: buildInitialCattlePiles(),
 			fightDeck: buildInitialFightDeck(),
@@ -4776,6 +4966,7 @@ const WesternLegendsGame: Game<WesternLegendsState> = {
 				migrateMarshalPointsIfMissing(G);
 				migrateStoryInPlayIfMissing(G);
 				migrateStoryDecksIfMissing(G);
+				dealInitialFaceUpStoryCardsIfEmpty(G);
 				migrateSaloonRoundIfMissing(G);
 				migrateSaloonRevealIfMissing(G);
 				migrateProspectRevealIfMissing(G);
@@ -4850,6 +5041,9 @@ const WesternLegendsGame: Game<WesternLegendsState> = {
 					p.pendingSprintAfterMove = false;
 					p.pendingWallopAfterMove = false;
 					delete p.usedReputationCardThisTurn;
+					delete G.storyResolvedReveal;
+					/** Wrangle / rustle if still carrying cattle on rail or opposing ranch (e.g. stranded after refresh or pre-fix saves). */
+					tryResolveCattleDelivery(G, ctx, p, p.locationId);
 					/** Foot baseline until {@link resolveTurnLoadoutAfterIncome} sets mount and refreshes again. */
 					refreshMovementPointsForTurnMount(p);
 					const def = p.characterId ? STARTER_CHARACTER_BY_ID[p.characterId] : undefined;
@@ -4935,32 +5129,31 @@ const WesternLegendsGame: Game<WesternLegendsState> = {
 	},
 
 	/**
-	 * boardgame.io may pass a frozen `G` here; do not mutate it. Scoring for the gameover
-	 * payload uses a clone; {@link WesternLegendsGame.onEnd} persists scored LP/breakdown.
+	 * boardgame.io may pass a frozen `G` here; do not mutate it. Run migrations only on a deep
+	 * clone so `migrateManInBlackIfMissing` / `migrateEndgameStateIfMissing` do not assign to `G`.
 	 */
 	endIf: ({ G, ctx }: WLCtx) => {
 		const maxTurns = MAX_ROUNDS * ctx.numPlayers;
-		migrateEndgameStateIfMissing(G);
+		const GCheck = JSON.parse(JSON.stringify(G)) as WesternLegendsState;
+		migrateEndgameStateIfMissing(GCheck);
+		migrateManInBlackIfMissing(GCheck);
 
 		if (ctx.turn >= maxTurns) {
-			const GScored = JSON.parse(JSON.stringify(G)) as WesternLegendsState;
-			performEndGameScoring(GScored);
-			return (getGameOverResult(GScored) ?? {
-				sharedWinners: Object.keys(GScored.players),
+			performEndGameScoring(GCheck);
+			return (getGameOverResult(GCheck) ?? {
+				sharedWinners: Object.keys(GCheck.players),
 			}) as WesternLegendsGameOver;
 		}
 
-		migrateManInBlackIfMissing(G);
 		const goalReached =
-			Object.keys(G.players).some((pid) => G.players[pid].legendaryPoints >= G.legendGoal) ||
-			(isManInBlackVariant(G) && (G.manInBlack?.legendaryPoints ?? 0) >= G.legendGoal);
-		if (goalReached && G.endgamePhase !== 'done') return undefined;
+			Object.keys(GCheck.players).some((pid) => GCheck.players[pid].legendaryPoints >= GCheck.legendGoal) ||
+			(isManInBlackVariant(GCheck) && (GCheck.manInBlack?.legendaryPoints ?? 0) >= GCheck.legendGoal);
+		if (goalReached && GCheck.endgamePhase !== 'done') return undefined;
 
-		if (G.endgamePhase === 'done') {
-			const GScored = JSON.parse(JSON.stringify(G)) as WesternLegendsState;
-			performEndGameScoring(GScored);
-			return (getGameOverResult(GScored) ?? {
-				sharedWinners: Object.keys(GScored.players),
+		if (GCheck.endgamePhase === 'done') {
+			performEndGameScoring(GCheck);
+			return (getGameOverResult(GCheck) ?? {
+				sharedWinners: Object.keys(GCheck.players),
 			}) as WesternLegendsGameOver;
 		}
 

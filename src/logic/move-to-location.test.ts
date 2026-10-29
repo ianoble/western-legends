@@ -188,4 +188,34 @@ describe('moveToLocation (move leg MP)', () => {
 		expect(G.players['0'].turnActions).toEqual(['move']);
 		expect(G.players['0'].movementPointsLeft).toBe(mpAfterMove);
 	});
+
+	it('auto rustle when move ends on mp-2 with blue cattle (opposing ranch)', () => {
+		expect(getShortestPathLength(BOARD_SPACES_BY_ID, 'mp-1', 'mp-2')).toBe(1);
+		const G = buildG();
+		G.players['0'].locationId = 'mp-1';
+		G.players['0'].carriedCattle = { color: 'blue', face: 'cattle-lp1' };
+		const lp0 = G.players['0'].legendaryPoints;
+		const ctx = makeCtx('0');
+		const ctxArg = { G, ctx } as Parameters<typeof moveToLocation>[0];
+		expect(moveToLocation(ctxArg, 'mp-2')).not.toBe(INVALID_MOVE);
+		expect(G.players['0'].locationId).toBe('mp-2');
+		expect(G.players['0'].carriedCattle).toBeNull();
+		expect(G.players['0'].wantedPoints).toBeGreaterThan(0);
+		expect(G.players['0'].legendaryPoints).toBe(lp0 + 1);
+	});
+
+	it('auto rustle when move ends on sh-3 with green cattle (opposing ranch)', () => {
+		expect(getShortestPathLength(BOARD_SPACES_BY_ID, 'sh-2', 'sh-3')).toBe(1);
+		const G = buildG();
+		G.players['0'].locationId = 'sh-2';
+		G.players['0'].carriedCattle = { color: 'green', face: 'cattle-lp1' };
+		const lp0 = G.players['0'].legendaryPoints;
+		const ctx = makeCtx('0');
+		const ctxArg = { G, ctx } as Parameters<typeof moveToLocation>[0];
+		expect(moveToLocation(ctxArg, 'sh-3')).not.toBe(INVALID_MOVE);
+		expect(G.players['0'].locationId).toBe('sh-3');
+		expect(G.players['0'].carriedCattle).toBeNull();
+		expect(G.players['0'].wantedPoints).toBeGreaterThan(0);
+		expect(G.players['0'].legendaryPoints).toBe(lp0 + 1);
+	});
 });

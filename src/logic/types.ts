@@ -372,7 +372,7 @@ export interface WesternLegendsPlayer {
   usedReputationCardThisTurn?: boolean;
   /** Living Legend (any Ace) B-slot play; at most once per turn. */
   usedLivingLegendThisTurn?: boolean;
-  /** Reputation (7) reaction; at most once per turn. */
+  /** Reputation (7) reaction; at most once per turn (does not consume an A/B/C/D slot). */
   usedReputationSevenThisTurn?: boolean;
   /** You gained Marshal or Wanted this turn — may react with a 7 for +1 LP. */
   pendingReputationSevenReaction?: boolean;
@@ -518,7 +518,7 @@ export interface FightState {
   manInBlackFightKind?: 'duel' | 'rob';
 }
 
-/** One face-up story card on the board; {@link WesternLegendsState.storyInPlay}[0] = left card, [1] = right. */
+/** One in-play story card (face down on the table until it resolves; slot 0 = left, slot 1 = right; see {@link WesternLegendsState.storyInPlay}). */
 export interface StoryInPlayEntry {
   cardId: string;
   discs: number;
@@ -569,11 +569,15 @@ export interface WesternLegendsState extends BaseGameState {
   /** Resolved stories (bookkeeping; the two map piles are `storyDeckLeft` / `storyDeckRight`). */
   storyDiscard: string[];
   /**
-   * Story cards in play with contribution discs. End of turn: when {@link storyDiscsRequiredToResolve}
-   * is met, the card is discarded (rewards stub — log only).
-   * Rows `[0]` / `[1]` map to the left and right face-up story cards on the board (see story disc spots).
+   * Two board slots: left pile / right pile. `null` = empty slot (refill next deal).
+   * After a story resolves on `pass`, the card is discarded and the next id is drawn from that side’s deck only.
    */
-  storyInPlay: StoryInPlayEntry[];
+  storyInPlay: [StoryInPlayEntry | null, StoryInPlayEntry | null];
+  /**
+   * After `pass` when one or more stories met the disc threshold: show printed **front** at that slot until next turn.
+   * Cleared in `turn.onBegin`. Omitted when none resolved this pass.
+   */
+  storyResolvedReveal?: { reveals: { slotIndex: 0 | 1; cardId: string }[] } | null;
   /** Sheriff (Darkrock office), bandits on hideouts — authoritative for story / future moves. */
   boardNpcs: BoardNpc[];
   /** Remaining cattle tokens by herd color (next pickup pops from front). */

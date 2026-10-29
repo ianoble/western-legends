@@ -1,0 +1,377 @@
+{
+  "_meta": {
+    "source": "Transcribed from story_card_01a.png through story_card_40a.png",
+    "field_notes": {
+      "id": "Zero-padded card number matching the image filename.",
+      "image": "Filename of the card face in this folder.",
+      "title": "Title printed at the top of the card.",
+      "flavor": "Italicized flavor text just under the title.",
+      "event": "Main event text in the center scroll.",
+      "spawn_bandits": "Integer count of bandit icons shown in the 'Spawn Bandits' section. 0 means no icons.",
+      "sheriff_move": "Exact text of the sheriff-movement line at the bottom. null when the card has no such line (sheriff movement is baked into the event text instead)."
+    },
+    "caveat": "Flavor text on several cards was difficult to resolve at the provided image resolution. Event, bandit count, and sheriff lines are confident; flavor text should be spot-checked."
+  },
+  "cards": [
+    {
+      "id": "01",
+      "image": "story_card_01a.png",
+      "title": "THE GOOD BOOK",
+      "flavor": "In the Good Book, there's light and dark, good and evil. Everything that ever was can be boiled down into one or the other. In a world without laws, there'll be no one to break 'em.",
+      "event": "Players that contributed to this gain 1 Marshal point or 1 Wanted point. Wanted players may gain 1 Marshal point in this way.",
+      "spawn_bandits": 1,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 3 spaces."
+    },
+    {
+      "id": "02",
+      "image": "story_card_02a.png",
+      "title": "THE ALVORD-STILES GANG",
+      "flavor": "No sooner than ol' Mutt turned in his badge, he took to crime like a fly on manure. Livin' what he knew of the law, he made a name for himself with the local rabble. What could make a man leave as noble a post as postmaster, betterment left for wiser men I s'pose.",
+      "event": "Players that contributed to this draw 1 poker card. They must fight the Alvord-Stiles Gang, which draws 3 fight cards. Players that win gain $20 in addition to any other penalties or rewards.",
+      "spawn_bandits": 1,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 3 spaces."
+    },
+    {
+      "id": "03",
+      "image": "story_card_03a.png",
+      "title": "THE WIDOW",
+      "flavor": "He'd been gone for days by the looks of it, but she howled and tugged at his shirt nonetheless. Her husband was no saint, a drinker with a penchant for cheatin' at cards, but he didn't deserve this. If the widow could not have one more night, the coyotes would finish what the beasts couldn't.",
+      "event": "Players that contributed to this gain 1LP. Marshal players that contributed to this may discard 1 poker card to gain 1 Marshal point.",
+      "spawn_bandits": 0,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 3 spaces."
+    },
+    {
+      "id": "04",
+      "image": "story_card_04a.png",
+      "title": "DEAD OR ALIVE",
+      "flavor": "Justice is a weed and barely more. Out here, there's a lot of ways to make a living, but only one that lines your pockets. And shame the Lord for those willin' to lie, cheat, steal so that others can feed their families chasin' after 'em.",
+      "event": "Marshal and Wanted players that contributed to this draw to their maximum hand size.",
+      "spawn_bandits": 3,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 3 spaces."
+    },
+    {
+      "id": "05",
+      "image": "story_card_05a.png",
+      "title": "THE PINKERTONS",
+      "flavor": "They rode into town with shotguns and sneers, the Pinkertons and their detectives. The curtains are drawn in the stagecoach, a heavy lock on the only door. Whatever is in there must be worth all the fuss.",
+      "event": "Players that contributed to this draw 1 poker card. Wanted players that contributed to this must fight the Pinkertons, which draw 3 fight cards. Players that win gain 1 Wanted point in addition to any other penalties or rewards.",
+      "spawn_bandits": 0,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 3 spaces."
+    },
+    {
+      "id": "06",
+      "image": "story_card_06a.png",
+      "title": "HIGH NOON",
+      "flavor": "Main street is as dusty a place as any for dyin'. Like the coliseum of old, it's easy entertainment for folks who have the stomach to watch. It's just a happy coincidence the sand is already red.",
+      "event": "Players that contributed to this gain 1LP. They may gain 1 wound to upgrade 1 weapon at no cost.",
+      "spawn_bandits": 3,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 3 spaces."
+    },
+    {
+      "id": "07",
+      "image": "story_card_07a.png",
+      "title": "THE CRUEL WASTES",
+      "flavor": "Yes plague every town, bleedin' and thirsty. Folks just stare as you soundly drink from the trough they're used of depends on it. And it does. One more hour out there in the mesa and you'd be buzzard food for sure.",
+      "event": "Players that contributed to this lose all wounds. They may discard 1 poker card to draw 1 poker card.",
+      "spawn_bandits": 0,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 3 spaces."
+    },
+    {
+      "id": "08",
+      "image": "story_card_08a.png",
+      "title": "LOCAL RABBLE",
+      "flavor": "They're mostly fat, the smelly sorts of homesteaders and prospectors. In town, they kick up trouble like a desert wind. The Sheriff seems to think, their deviltry is the work of boys not mean enough to find miles, but where this is headed is clear. Smelly enough they'll be with the Coyotes at warm.",
+      "event": "Players that contributed to this may gain 1 Marshal point or 1 Wanted point. Players that did not contribute to this must lose $20 or gain 1 wound.",
+      "spawn_bandits": 1,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 3 spaces."
+    },
+    {
+      "id": "09",
+      "image": "story_card_09a.png",
+      "title": "DRUNKEN DEBAUCHERY",
+      "flavor": "There's a reason them boys out on the mesa call whiskey firewater. Drink enough of it and you'll find yourself in a heated situation.",
+      "event": "Players that contributed to this gain 1 Whiskey. Move the Sheriff to the Cabaret in Red Falls.",
+      "spawn_bandits": 2,
+      "sheriff_move": null
+    },
+    {
+      "id": "10",
+      "image": "story_card_10a.png",
+      "title": "POSTED BOUNTY",
+      "flavor": "You can only get a foot so many times before the Sheriff comes lookin' for ya. Try as you might, he'll find ya out there for them red rocks as sure as a fly finds a man's wound.",
+      "event": "Marshal players that contributed to this gain $30. Wanted players that contributed to this gain 1 gold nugget.",
+      "spawn_bandits": 0,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 3 spaces."
+    },
+    {
+      "id": "11",
+      "image": "story_card_11a.png",
+      "title": "THE CLANTON GANG",
+      "flavor": "Bad luck them Clanton Boys are. One just as close-fisted as the next, and all of them happier than a buzzard to see the light go out in a man's eyes.",
+      "event": "Players that contributed to this draw 1 poker card. They must fight the Clanton Gang, which draws 3 fight cards. Players that win draw 2 poker cards in addition to any other penalties or rewards.",
+      "spawn_bandits": 1,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 3 spaces."
+    },
+    {
+      "id": "12",
+      "image": "story_card_12a.png",
+      "title": "BIG SPENDER",
+      "flavor": "Spend enough actual in town and you'll quickly find yourself with more friends than you could ever need. The only good thing about friends is they tend to trust a fella with more lies than they likely should.",
+      "event": "Players that contributed to this gain 1 Ten-Gallon or 1 Whiskey. Or, they may gain 1 Wanted point to gain both.",
+      "spawn_bandits": 2,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 3 spaces."
+    },
+    {
+      "id": "13",
+      "image": "story_card_13a.png",
+      "title": "THE CAVE",
+      "flavor": "Bandits round them parts are partial to hidden caves. It's safe from Marshals, rivals, and coyotes, for the most part. In the damp dark is where they stash their loot. And such a cave ain't right before you.",
+      "event": "Players that contributed to this gain 1 Marshal point or 1 Wanted point. Place 1 gold nugget on each Mine space. After a player ends a move action on a Mine space with a gold nugget, they gain it if able.",
+      "spawn_bandits": 3,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 3 spaces."
+    },
+    {
+      "id": "14",
+      "image": "story_card_14a.png",
+      "title": "ON KILLIN'",
+      "flavor": "The outlaws roll into town like a pack of hungry wolves. You can hear whiskey-stained cheers as the bullets fly. Underneath the gunfire, folks scream and holler as they scramble for cover. Most times, it's easy to stick out, sickly and toll the whole happen, but not this time. Just blood and thunder, follow for the skills of death and nothin' else.",
+      "event": "Players that contributed to this draw 1 poker card. They must fight the outlaws, which draw 3 fight cards. Players that win gain 1 Marshal point, 1 Wanted point, or 1LP in addition to any other penalties or rewards.",
+      "spawn_bandits": 0,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 3 spaces."
+    },
+    {
+      "id": "15",
+      "image": "story_card_15a.png",
+      "title": "THE SHERIFF OF DARKROCK",
+      "flavor": "The Sheriff is about as sharp as a spoon on a dusty day, but he's a nice enough fella when it comes down to it. Problem is, the Marshals are such leelers to take his job. Worse yet, outlaws round these parts find the old stock to be more humorous than a threat.",
+      "event": "Players that contributed to this gain 1 Marshal point or 1 Wanted point. Place 1 gold nugget on each Bandit hideout. After a player ends a move action on a Bandit hideout with a gold nugget, they gain it if able.",
+      "spawn_bandits": 3,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 3 spaces."
+    },
+    {
+      "id": "16",
+      "image": "story_card_16a.png",
+      "title": "SPOILS",
+      "flavor": "Tell me you were sensible, saddled in this world than a man who sent bet on a dead man. Broutard foot ain't got no use for hats, or guns, or suther of the sort, sometimes to be the taste: enjoy the spoils of war.",
+      "event": "Players that contributed to this gain a miscellaneous item at no cost. Players with a Ten-Gallon draw 1 poker card.",
+      "spawn_bandits": 1,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 3 spaces."
+    },
+    {
+      "id": "17",
+      "image": "story_card_17a.png",
+      "title": "GOLD RUSH",
+      "flavor": "Eureka!",
+      "event": "Players that contributed to this gain 1 Miner's Map. Players that contributed to this that already have a Miner's Map gain 1 gold nugget instead. Place 1 gold nugget on each Mine space. After a player ends a move action on a Mine space with a gold nugget, they gain it if able.",
+      "spawn_bandits": 2,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 3 spaces."
+    },
+    {
+      "id": "18",
+      "image": "story_card_18a.png",
+      "title": "PRESIDENTIAL VISIT",
+      "flavor": "The fella all opposite the saloon fully familiar, but we can't quite place 'im. Long beard and a face that looked to be chiseled from rock. Yer eyes meet, and he gives you a knowin' nod, tippin' his stove-up hat like a gentleman from a better place than this.",
+      "event": "Players that contributed to this gain 1LP. They may spend $20 or discard 1 Whiskey to gain an additional 1LP.",
+      "spawn_bandits": 0,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 3 spaces."
+    },
+    {
+      "id": "19",
+      "image": "story_card_19a.png",
+      "title": "HARSH TIMES",
+      "flavor": "There's a reason why some folks, wilde others are just plum rotten. But to survive this cloudfisted, you gotta be one or t'other if you're wantin' to survive.",
+      "event": "Players that contributed to this gain $10. Players that did not contribute to this discard 1 poker card or gain 1 wound.",
+      "spawn_bandits": 2,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 3 spaces."
+    },
+    {
+      "id": "20",
+      "image": "story_card_20a.png",
+      "title": "BLOOD MONEY",
+      "flavor": "Revenge is a vocation, same as herdin' stone or sweepin' the saloon floor. Everyone has an enemy and even good men are willin' to spill blood for the right reasons.",
+      "event": "Players that contributed to this gain $30, or they may gain 1 wound to gain $50 instead.",
+      "spawn_bandits": 2,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 3 spaces."
+    },
+    {
+      "id": "21",
+      "image": "story_card_21a.png",
+      "title": "TOOLS OF THE TRADE",
+      "flavor": "One bundy all things, even the toughest fella, the wildest hoss. The right tools can make any job easier, especially in the right markrade.",
+      "event": "Players that contributed to this upgrade 1 mount or weapon at no cost.",
+      "spawn_bandits": 1,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 3 spaces."
+    },
+    {
+      "id": "22",
+      "image": "story_card_22a.png",
+      "title": "FORTUNE FAVORS THE BOLD",
+      "flavor": "\"Fortune favors the bold,\" someone much wiser than us once said. And boy were they right. Whether you were smooth talkin' folks or catchin' fellas that did, there was actual to be had by those willin' to paint their equivalent at someone else.",
+      "event": "Players that contributed to this gain 1 gold nugget or 1 cattle token from a Ranch of their choice. Or, they may gain 1 wound to gain both.",
+      "spawn_bandits": 2,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 3 spaces."
+    },
+    {
+      "id": "23",
+      "image": "story_card_23a.png",
+      "title": "THE LAW",
+      "flavor": "A marshal's badge is more than a piece of metal. It's an ark to keep the peace and uphold the law in a place when the lawless roam like packs of mad dogs.",
+      "event": "Players that contributed to this gain 1 Marshal point. Wanted players may pay $10 to gain a Marshal point in this way.",
+      "spawn_bandits": 0,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 6 spaces."
+    },
+    {
+      "id": "24",
+      "image": "story_card_24a.png",
+      "title": "RUB SOME DIRT IN IT",
+      "flavor": "Gettin' shot's just somethin' that happens, same as gettin' married or watchin' a fever.",
+      "event": "Players that contributed to this may gain 1 wound to draw 1 poker card. Each player with 1 or more wounds gain 1LP.",
+      "spawn_bandits": 3,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 3 spaces."
+    },
+    {
+      "id": "25",
+      "image": "story_card_25a.png",
+      "title": "TRIBES OF THE MESA",
+      "flavor": "You can hear 'em in the mountains, voices echoing out across the red desert. Though strange to us, the people of the mesa have lived off the barren land for longer than most folks can imagine. They are a kind people, even to those that don't deserve no kindness, even to those that drove them up into them mountains.",
+      "event": "Players that contributed to this gain 1LP. They may discard 1 poker card to lose all wounds.",
+      "spawn_bandits": 3,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 6 spaces."
+    },
+    {
+      "id": "26",
+      "image": "story_card_26a.png",
+      "title": "ABANDONED WAGON",
+      "flavor": "The prairie schooner sat there like a message in the rusty-colored dust. The torn canvas fluttered in the hot wind, proof that misfortune had fallen upon the travelers. The schooner was nearly bare, save for a few lucky scraps.",
+      "event": "Players that contributed to this gain 1 Provisions and 1 cattle token from a Ranch of their choice.",
+      "spawn_bandits": 2,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 3 spaces."
+    },
+    {
+      "id": "27",
+      "image": "story_card_27a.png",
+      "title": "THE BURROW GANG",
+      "flavor": "Trouble follows them boys like a dog. Lawmen and outlaws alike scour the mesa for their fee in the hole with the hopes of puttin' an end to their wanton ways.",
+      "event": "Players that contributed to this draw 1 poker card. They must fight the Burrow Gang, which draws 3 fight cards. Players that win may lose all wounds in addition to any other penalties or rewards.",
+      "spawn_bandits": 1,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 3 spaces."
+    },
+    {
+      "id": "28",
+      "image": "story_card_28a.png",
+      "title": "THE GALLOWS",
+      "flavor": "Anymore, it's not uncommon for thieves, killers, and the like to find themselves at the end of a rope. So there's only one real choice for those that find the law an inconvenience; don't get caught.",
+      "event": "Players that contributed to this draw 1 poker card. Remove all bandits from play. Move the Sheriff to the Sheriff's Office.",
+      "spawn_bandits": 0,
+      "sheriff_move": null
+    },
+    {
+      "id": "29",
+      "image": "story_card_29a.png",
+      "title": "STRAYS",
+      "flavor": "Cows ain't got a lick of sense in 'em, in spite of how big they are and all.",
+      "event": "Players that contributed to this gain 1 cattle token from a Ranch of their choice. Players from a Ranch that already have a cattle token gain 1 gold nugget.",
+      "spawn_bandits": 1,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 3 spaces."
+    },
+    {
+      "id": "30",
+      "image": "story_card_30a.png",
+      "title": "THE WILD WILD WEST",
+      "flavor": "Maybe it's the heat that makes men madder out here than anywhere else in the world. Maybe it's the uncertainty of just how big this world really is. Sometimes a pardon feels to extremes. Good, bad, and just plain loco.",
+      "event": "Players that contributed to this gain 1 weapon at no cost. Players that have 2 or more weapons may gain 1LP.",
+      "spawn_bandits": 3,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 3 spaces."
+    },
+    {
+      "id": "31",
+      "image": "story_card_31a.png",
+      "title": "TRADING POST",
+      "flavor": "Furs and pelts hung on the porch of the tradin' post like streamers cut to dry. Smiles sat on various sundries for pennies, homesteaders, and the like. The ol' gal behind the counter is scheelin' away on a piece of yellow bone like her life depends on it. She looks up from her task, smiles toothlessly, and asks, 'what'll be chain?'",
+      "event": "Players that contributed to this gain $20, 1 Provisions, or 1 cattle token from a Ranch of their choice.",
+      "spawn_bandits": 2,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 3 spaces."
+    },
+    {
+      "id": "32",
+      "image": "story_card_32a.png",
+      "title": "GAMBLIN'",
+      "flavor": "Luck is a fickle gal, sometimes cruel, sometimes kind. Mercy of fellas owing a pickpay to make their fortune, but others can do so from the comfort of a chair in a game of chance.",
+      "event": "Players that contributed to this must participate in a game of poker at no cost; drawing 2 poker cards instead of 1. The player that wins gains 1LP and $30. If only one player contributed to this, that player must instead play against the dealer.",
+      "spawn_bandits": 1,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 3 spaces."
+    },
+    {
+      "id": "33",
+      "image": "story_card_33a.png",
+      "title": "RIGHT AND WRONG",
+      "flavor": "For most folks out here, the only thing that separates right and wrong is gettin' caught.",
+      "event": "Players that contributed to this gain 1 Miner's Map or 1 Whiskey. Or, they may gain 1 Wanted point to gain both.",
+      "spawn_bandits": 2,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 6 spaces."
+    },
+    {
+      "id": "34",
+      "image": "story_card_34a.png",
+      "title": "SNAKE OIL SALESMAN",
+      "flavor": "At the origin of a rickety cart, your pale old town. Selling tonics, elixirs, trial remedies, and cryptic herbs, the man did so guilessly after you a sample of his wares.",
+      "event": "Players that contributed to this draw 2 poker cards. Players that did not contribute to this may pay $10 to draw 1 poker card.",
+      "spawn_bandits": 1,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 3 spaces."
+    },
+    {
+      "id": "35",
+      "image": "story_card_35a.png",
+      "title": "GHOST MINE",
+      "flavor": "All these years out on the mesa and this old you see this mine. It looks to be almost a hundred years old, which makes about as much sense as a hot one mule. Somethin' glows in the dirt, a nugget, as big as a shotgun shell. Well the sense, but a man like a qockhat fella from somewhere down in the dark.",
+      "event": "Players that contributed to this gain 1 gold nugget. They may gain 1 wound to gain an additional gold nugget.",
+      "spawn_bandits": 3,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 3 spaces."
+    },
+    {
+      "id": "36",
+      "image": "story_card_36a.png",
+      "title": "THE PREACHER",
+      "flavor": "Despite the preacher's betterment efforts, the gospel mill has never been much more than four walls and a bad roof. After each sermon, he takes what little donations the community provides and locks it in a box under his pulpit.",
+      "event": "Players that contributed to this may spend $10 to gain 1 Marshal point. Or they may gain $10 and 1 Wanted point. The player that triggered this may move the Sheriff to any space in Darkrock.",
+      "spawn_bandits": 0,
+      "sheriff_move": null
+    },
+    {
+      "id": "37",
+      "image": "story_card_37a.png",
+      "title": "SPIT-SHINED AND PROPER",
+      "flavor": "One would think it impossible to maintain even a modicum of civility in a place as lawless as this. Yet folks anywhere else, mutters, etiquette, and simple things such as courtship rituals are as much a way of life as dyin' at the serving end of a gun.",
+      "event": "Players that contributed to this gain $10 and lose 1 wound. Players with no wounds gain 1LP.",
+      "spawn_bandits": 3,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 3 spaces."
+    },
+    {
+      "id": "38",
+      "image": "story_card_38a.png",
+      "title": "CHEAP HORSE",
+      "flavor": "The house was little more than a shack, up on a woody hill. Their livestock wobbles about without ropes or fences. There's nowhere to go after all, not out into the red wastes where the heat kills surer than any bullet. There's a mare up on that hill and a dairy cow at that.",
+      "event": "Players that contributed to this draw 1 poker card. They may gain 1 Wanted point to gain or upgrade 1 mount at no cost.",
+      "spawn_bandits": 3,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 3 spaces."
+    },
+    {
+      "id": "39",
+      "image": "story_card_39a.png",
+      "title": "HOMESTEADERS",
+      "flavor": "Out in the red rocks and sand, homesteaders dry out a cut and dry life from the land. Some are friendly, while others prefer their privacy. Folks that wander too far from the nusa stagger up to their doors with taster of claim, a We is grub. The unlucky ones are greeted with rifles or nothing but greenery.",
+      "event": "Players that contributed to this gain 1 Provisions or lose all wounds. Place 1 gold nugget on each Ranch. After a player ends a move action on a Ranch with a gold nugget, they gain it if able.",
+      "spawn_bandits": 1,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 3 spaces."
+    },
+    {
+      "id": "40",
+      "image": "story_card_40a.png",
+      "title": "WAR PARTY",
+      "flavor": "In the dying shadow of night, the cries of the war party carry across the flat land like the voices of ghosts. They seem to come from every direction at once. As you reach for your gun, the long shadows break the dark. There's a dozen of them, or more, and just out of sight.",
+      "event": "Players that contributed to this draw 1 poker card. They must fight the war party, which draws 3 fight cards. Players that win gain 1LP in addition to any other penalties or rewards.",
+      "spawn_bandits": 0,
+      "sheriff_move": "the player who triggered this moves the Sheriff up to 3 spaces."
+    }
+  ]
+}

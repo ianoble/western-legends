@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useGame, useToast } from '@engine/client';
 import {
 	maxDiscreteTurnSlotsForPlayer,
@@ -11,11 +11,15 @@ import {
 } from '../logic/types';
 import { movementPointsForEquippedMount } from '../logic/movementCap';
 import { uiGamePhase } from '../logic/phaseUi';
-import { getStoryCardBackImageUrl, STORY_BACK_IMAGE_PATHS } from '../data/storyCards';
+import { getStoryCardBackImageUrl, getStoryCardFrontImageUrl, STORY_BACK_IMAGE_PATHS } from '../data/storyCards';
+import { getStoryCardByCardId } from '../data/storyCardContent';
+import StoryCardTextModal from './StoryCardTextModal.vue';
 import {
 	BOARD_IMAGE_PATH,
 	STORY_DISC_SPOTS_LEFT,
 	STORY_DISC_SPOTS_RIGHT,
+	STORY_FACEUP_LEFT_ZONE,
+	STORY_FACEUP_RIGHT_ZONE,
 	STORY_PILE_LEFT_ZONE,
 	STORY_PILE_RIGHT_ZONE,
 } from '../map/locationMarkers';
@@ -23,11 +27,7 @@ import { LEGEND_TRACK_CENTERS, MARSHAL_TRACK_CENTERS, WANTED_TRACK_CENTERS, trac
 import { DEFAULT_MOVEMENT_POINTS, getReachableSpaceIds, polygonCentroid } from '../map/boardGraph';
 import { BOARD_SPACES, BOARD_SPACES_BY_ID, BOARD_VIEWBOX_SIZE, SADDLE_UP_TOWN_SPACE_ID_SET } from '../map/boardSpaces';
 import { clearSaddleUpPick, useSaddleUpMapPick } from '../composables/useSaddleUpMapPick';
-import { IconMask, IconMeeple, IconUserShield } from '@tabler/icons-vue';
-
-/** NPC map tokens — high contrast on the board scan. */
-const NPC_SHERIFF_ICON_FILL = '#0a0a0a';
-const NPC_BANDIT_ICON_FILL = '#64748b';
+import { BANDIT_PIECE_IMAGE, PLAYER_PIECE_IMAGE, SHERIFF_PIECE_IMAGE } from '../data/playerPieceAssets';
 
 const auditMap = ref(false);
 
@@ -53,6 +53,49 @@ const { showToast } = useToast();
 const { saddleUpPickActive, saddleUpPickCardId, pokerBSlotCtxOk: mapPokerBSlotOk } = useSaddleUpMapPick();
 
 const G = computed(() => state.value);
+
+/**
+ * Transcribed story text is only available after a card **activates** (resolves). Set when the user opens
+ * the reader from the temporary revealed-front overlay (`storyResolvedReveal`), not from the in-play back.
+ */
+const inspectedRevealedStoryCardId = ref<string | null>(null);
+
+const storyTextModalContent = computed(() => {
+	const id = inspectedRevealedStoryCardId.value;
+	if (id == null) return null;
+	return getStoryCardByCardId(id) ?? null;
+});
+
+function toggleRevealedStoryText(cardId: string) {
+	if (inspectedRevealedStoryCardId.value === cardId) {
+		inspectedRevealedStoryCardId.value = null;
+	} else {
+		inspectedRevealedStoryCardId.value = cardId;
+	}
+}
+
+function storyRevealButtonLabel(cardId: string): string {
+	const t = getStoryCardByCardId(cardId)?.title;
+	return t != null && t.length > 0 ? `Read story: ${t}` : 'Read resolved story text';
+}
+
+function closeStoryTextModal() {
+	inspectedRevealedStoryCardId.value = null;
+}
+
+/** Close the reader when the post-resolve reveal window ends (next `turn.onBegin` clears it). */
+watch(
+	() => G.value.storyResolvedReveal?.reveals,
+	(revs) => {
+		const id = inspectedRevealedStoryCardId.value;
+		if (id == null) return;
+		if (!revs?.some((r) => r.cardId === id)) {
+			inspectedRevealedStoryCardId.value = null;
+		}
+	},
+	{ deep: true },
+);
+
 const me = computed(() => {
 	const pid = playerID.value;
 	if (!pid) return undefined;
@@ -330,8 +373,10 @@ type BoardFigureMarker = {
 	cy: number;
 	zIndex: number;
 	tag: 'player' | 'npc' | 'manInBlack';
-	/** Player seat color (players only). */
+	/** Player seat color (track disks / legacy); optional when using `playerColor`. */
 	fill?: string;
+	/** Seat color for bitmap player pieces and MIB. */
+	playerColor?: PlayerColor;
 	playerId?: string;
 	npcKind?: BoardNpc['kind'];
 };
@@ -424,6 +469,7 @@ const boardFigureMarkers = computed((): BoardFigureMarker[] => {
 					key: 'man-in-black',
 					tag: 'manInBlack',
 					fill: TRACK_DISK_FILL[occ.color],
+					playerColor: occ.color,
 					cx: base[0] + ox,
 					cy: base[1] + oy,
 					zIndex: 1,
@@ -436,6 +482,7 @@ const boardFigureMarkers = computed((): BoardFigureMarker[] => {
 				tag: 'player',
 				playerId: occ.pid,
 				fill: TRACK_DISK_FILL[occ.pl.color],
+				playerColor: occ.pl.color,
 				cx: base[0] + ox,
 				cy: base[1] + oy,
 				zIndex: isLocal ? 2 : 1,
@@ -454,29 +501,23 @@ function figureMarkerIconStyle(m: BoardFigureMarker) {
 	};
 }
 
-const FALLBACK_STORY_BACK = STORY_BACK_IMAGE_PATHS.spend_80_town_single_action;
+/** Single generic back art: piles and in-play cards stay face-down until a story resolves (see `storyFlipFrontOverlays`). */
+const FACE_DOWN_STORY_BACK = STORY_BACK_IMAGE_PATHS.spend_80_town_single_action;
 
-/** Two piles (half the shuffled deck each). Percents are viewBox coords; rendered in {@link svgOverlayStyle} box. */
+/** Two draw piles (half the deck each). Always show a generic face-down; do not reveal the next card’s back type. */
 const storyPilesUi = computed(() => {
-	const left = G.value.storyDeckLeft ?? [];
-	const right = G.value.storyDeckRight ?? [];
-	const topBack = (pile: string[]) => {
-		if (!pile.length) return FALLBACK_STORY_BACK;
-		const id = pile[pile.length - 1]!;
-		return getStoryCardBackImageUrl(id) ?? FALLBACK_STORY_BACK;
-	};
 	return [
 		{
 			key: 'story-pile-left',
 			xPct: STORY_PILE_LEFT_ZONE.xPct,
 			yPct: STORY_PILE_LEFT_ZONE.yPct,
-			backUrl: topBack(left),
+			backUrl: FACE_DOWN_STORY_BACK,
 		},
 		{
 			key: 'story-pile-right',
 			xPct: STORY_PILE_RIGHT_ZONE.xPct,
 			yPct: STORY_PILE_RIGHT_ZONE.yPct,
-			backUrl: topBack(right),
+			backUrl: FACE_DOWN_STORY_BACK,
 		},
 	];
 });
@@ -510,6 +551,52 @@ const storyDiscRectHalfVB = computed(() => trackRectHalfVB(STORY_DISC_HALF_PX));
 
 type StoryDiscMarker = { key: string; cx: number; cy: number; wPct: number; hPct: number; fill: string };
 
+/**
+ * In-play story cards: **condition back** only (art with disc spaces and trigger text — 01b–04b by type).
+ * The printed narrative (01a) stays hidden until resolution; see {@link storyFlipFrontOverlays}.
+ */
+const storyBackOverlays = computed(() => {
+	const rows = G.value.storyInPlay ?? [];
+	const zones = [STORY_FACEUP_LEFT_ZONE, STORY_FACEUP_RIGHT_ZONE] as const;
+	const out: { key: string; xPct: number; yPct: number; src: string }[] = [];
+	for (let i = 0; i < 2; i++) {
+		const row = rows[i];
+		if (!row?.cardId) continue;
+		const src = getStoryCardBackImageUrl(row.cardId) ?? FACE_DOWN_STORY_BACK;
+		out.push({
+			key: `story-back-${i}-${row.cardId}`,
+			xPct: zones[i].xPct,
+			yPct: zones[i].yPct,
+			src,
+		});
+	}
+	return out;
+});
+
+/**
+ * After pass, when a row met the disc threshold: show printed **front** briefly (see `G.storyResolvedReveal`).
+ */
+const storyFlipFrontOverlays = computed(() => {
+	const reveals = G.value.storyResolvedReveal?.reveals;
+	if (!reveals?.length) return [];
+	const zones = [STORY_FACEUP_LEFT_ZONE, STORY_FACEUP_RIGHT_ZONE] as const;
+	const out: { key: string; xPct: number; yPct: number; src: string; cardId: string }[] = [];
+	for (const fr of reveals) {
+		const src = getStoryCardFrontImageUrl(fr.cardId);
+		if (!src) continue;
+		const zone = zones[fr.slotIndex];
+		if (!zone) continue;
+		out.push({
+			key: `story-flip-${fr.slotIndex}-${fr.cardId}`,
+			xPct: zone.xPct,
+			yPct: zone.yPct,
+			src,
+			cardId: fr.cardId,
+		});
+	}
+	return out;
+});
+
 /** `storyInPlay[0]` = left card, `[1]` = right; slots match {@link STORY_DISC_SPOTS_LEFT} / {@link STORY_DISC_SPOTS_RIGHT}. */
 const storyDiscMarkers = computed((): StoryDiscMarker[] => {
 	const rows = G.value.storyInPlay ?? [];
@@ -519,7 +606,7 @@ const storyDiscMarkers = computed((): StoryDiscMarker[] => {
 	const hPct = hh * 2;
 	const out: StoryDiscMarker[] = [];
 
-	function addForCard(row: StoryInPlayEntry | undefined, spots: typeof STORY_DISC_SPOTS_LEFT, keyPrefix: string) {
+	function addForCard(row: StoryInPlayEntry | null | undefined, spots: typeof STORY_DISC_SPOTS_LEFT, keyPrefix: string) {
 		if (!row) return;
 		for (let i = 0; i < 3; i++) {
 			let fill: string | undefined;
@@ -747,18 +834,31 @@ const marshalTrackMarkers = computed(() =>
 					v-if="contentRect.ready"
 					class="pointer-events-none absolute z-[5]"
 					:style="svgOverlayStyle"
-					aria-hidden="true"
 				>
 					<div
 						v-for="pile in storyPilesUi"
 						:key="pile.key"
-						class="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2"
+						class="pointer-events-none absolute z-[4] -translate-x-1/2 -translate-y-1/2"
 						:style="{ left: `${pile.xPct}%`, top: `${pile.yPct}%` }"
+						aria-hidden="true"
 					>
 						<img
 							:src="pile.backUrl"
 							alt=""
 							class="block w-[min(7.5rem,16vw)] rounded-md object-cover shadow-lg ring-1 ring-black/35 aspect-[63/88]"
+						/>
+					</div>
+					<div
+						v-for="sb in storyBackOverlays"
+						:key="sb.key"
+						class="pointer-events-none absolute z-[5] -translate-x-1/2 -translate-y-1/2"
+						:style="{ left: `${sb.xPct}%`, top: `${sb.yPct}%` }"
+						aria-hidden="true"
+					>
+						<img
+							:src="sb.src"
+							alt=""
+							class="block w-[min(8.5rem,18vw)] rounded-md object-cover shadow-lg ring-1 ring-black/40 aspect-[63/88]"
 						/>
 					</div>
 					<div
@@ -773,6 +873,26 @@ const marshalTrackMarkers = computed(() =>
 							backgroundColor: m.fill,
 						}"
 					/>
+					<div
+						v-for="flip in storyFlipFrontOverlays"
+						:key="flip.key"
+						class="pointer-events-auto absolute z-[8] -translate-x-1/2 -translate-y-1/2"
+						:style="{ left: `${flip.xPct}%`, top: `${flip.yPct}%` }"
+					>
+						<button
+							type="button"
+							class="relative block cursor-pointer rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/70 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+							:aria-pressed="inspectedRevealedStoryCardId === flip.cardId"
+							:aria-label="storyRevealButtonLabel(flip.cardId)"
+							@click="toggleRevealedStoryText(flip.cardId)"
+						>
+							<img
+								:src="flip.src"
+								alt=""
+								class="pointer-events-none block w-[min(8.5rem,18vw)] rounded-md object-cover shadow-lg ring-2 ring-amber-700/50 aspect-[63/88]"
+							/>
+						</button>
+					</div>
 				</div>
 				<!-- Seated players + board NPCs; local player stacks above others when sharing a hex -->
 				<template v-if="contentRect.ready">
@@ -784,40 +904,57 @@ const marshalTrackMarkers = computed(() =>
 						aria-hidden="true"
 					>
 						<div
-							v-if="mm.tag === 'player'"
-							class="absolute text-current"
-							:style="{ ...figureMarkerIconStyle(mm), color: mm.fill }"
+							v-if="mm.tag === 'player' && mm.playerColor"
+							class="absolute"
+							:style="figureMarkerIconStyle(mm)"
 						>
-							<IconMeeple :size="38" stroke="2.25" class="text-current" />
+							<img
+								:src="PLAYER_PIECE_IMAGE[mm.playerColor]"
+								alt=""
+								class="block h-[2.4rem] w-[2.4rem] max-h-[min(2.4rem,6.5vw)] max-w-[min(2.4rem,6.5vw)] object-contain select-none"
+							/>
 						</div>
 						<div
 							v-else-if="mm.npcKind === 'sheriff'"
-							class="absolute text-current"
-							:style="{ ...figureMarkerIconStyle(mm), color: NPC_SHERIFF_ICON_FILL }"
+							class="absolute"
+							:style="figureMarkerIconStyle(mm)"
 						>
-							<IconUserShield :size="34" stroke="2.1" class="text-current" />
+							<img
+								:src="SHERIFF_PIECE_IMAGE"
+								alt=""
+								class="block h-[2.15rem] w-[2.15rem] max-h-[min(2.15rem,6vw)] max-w-[min(2.15rem,6vw)] object-contain select-none"
+							/>
 						</div>
 						<div
-							v-else-if="mm.tag === 'manInBlack'"
-							class="absolute text-current"
+							v-else-if="mm.tag === 'manInBlack' && mm.playerColor"
+							class="absolute"
 							:title="'Man in Black'"
-							:style="{ ...figureMarkerIconStyle(mm), color: mm.fill }"
+							:style="figureMarkerIconStyle(mm)"
 						>
-							<IconMeeple :size="34" stroke="2" class="text-current ring-1 ring-black/40 rounded-full" />
+							<img
+								:src="PLAYER_PIECE_IMAGE[mm.playerColor]"
+								alt=""
+								class="block h-[2.2rem] w-[2.2rem] max-h-[min(2.2rem,6.2vw)] max-w-[min(2.2rem,6.2vw)] rounded-full object-contain ring-1 ring-black/40 select-none"
+							/>
 						</div>
-						<div
-							v-else
-							class="absolute text-current"
-							:style="{ ...figureMarkerIconStyle(mm), color: NPC_BANDIT_ICON_FILL }"
-						>
-							<IconMask :size="34" stroke="2.1" class="text-current" />
+						<div v-else class="absolute" :style="figureMarkerIconStyle(mm)">
+							<img
+								:src="BANDIT_PIECE_IMAGE"
+								alt=""
+								class="block h-[2.15rem] w-[2.15rem] max-h-[min(2.15rem,6vw)] max-w-[min(2.15rem,6vw)] object-contain select-none"
+							/>
 						</div>
 					</div>
 				</template>
 			</div>
 		</div>
 		<p class="border-t border-slate-800/80 bg-slate-950/95 px-2 py-1.5 text-center text-[10px] text-slate-500">
-			Meeples: seat colors · Reachable hexes (your turn): your color ({{ movementBudget }} MP) · Filled squares: Wanted (1–9) · Filled + teal stroke: Legend (1–30) · Filled squares: Marshal (1–9)
+			Player pieces: seat colors · Reachable hexes (your turn): your color ({{ movementBudget }} MP) · Filled squares: Wanted (1–9) · Filled + teal stroke: Legend (1–30) · Filled squares: Marshal (1–9)
 		</p>
+		<StoryCardTextModal
+			:open="inspectedRevealedStoryCardId !== null"
+			:content="storyTextModalContent"
+			@close="closeStoryTextModal"
+		/>
 	</div>
 </template>

@@ -1,4 +1,4 @@
-import { computed, onUnmounted, ref, watch } from 'vue';
+import { computed, onUnmounted, ref, toValue, watch } from 'vue';
 import { useGameStore } from '@engine/client';
 import type { WesternLegendsState } from '../logic/types';
 import { formatBugReportMarkdown, summarizeWesternLegendsForBugReport } from '../utils/wlBugReport';
@@ -80,27 +80,61 @@ export function useWlDiagnostics() {
 		return G != null && typeof G.legendGoal === 'number';
 	});
 
+	async function copyTextToClipboard(text: string): Promise<boolean> {
+		if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+			try {
+				await navigator.clipboard.writeText(text);
+				return true;
+			} catch {
+				/* fall through to legacy path (HTTP, permissions) */
+			}
+		}
+		try {
+			const ta = document.createElement('textarea');
+			ta.value = text;
+			ta.setAttribute('readonly', '');
+			ta.style.position = 'fixed';
+			ta.style.left = '-9999px';
+			ta.style.top = '0';
+			document.body.appendChild(ta);
+			ta.focus();
+			ta.select();
+			const ok = document.execCommand('copy');
+			document.body.removeChild(ta);
+			return ok;
+		} catch {
+			return false;
+		}
+	}
+
 	async function copyBugReport(): Promise<void> {
 		copyStatus.value = 'idle';
-		const G = store.G as WesternLegendsState | undefined;
-		if (!G) {
-			copyStatus.value = 'err';
-			return;
-		}
-		const md = formatBugReportMarkdown({
-			generatedAt: new Date().toISOString(),
-			pageUrl: typeof window !== 'undefined' ? window.location.href : '',
-			gameId: store.gameId,
-			matchID: store.matchID,
-			playerID: store.playerID,
-			userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
-			ctx: { ...store.ctx },
-			summary: summarizeWesternLegendsForBugReport(G, store.playerID),
-		});
 		try {
-			await navigator.clipboard.writeText(md);
-			copyStatus.value = 'ok';
-		} catch {
+			const G = store.G as WesternLegendsState | undefined;
+			if (!G) {
+				copyStatus.value = 'err';
+				return;
+			}
+			const ctxRaw = toValue(store.ctx) as Record<string, unknown> | undefined;
+			const md = formatBugReportMarkdown({
+				generatedAt: new Date().toISOString(),
+				pageUrl: typeof window !== 'undefined' ? window.location.href : '',
+				gameId: store.gameId,
+				matchID: store.matchID,
+				playerID: store.playerID,
+				userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+				ctx: ctxRaw != null && typeof ctxRaw === 'object' ? { ...ctxRaw } : {},
+				summary: summarizeWesternLegendsForBugReport(G, store.playerID),
+			});
+			const ok = await copyTextToClipboard(md);
+			copyStatus.value = ok ? 'ok' : 'err';
+			if (!ok) {
+				console.error(
+					'[WL] copyBugReport: clipboard unavailable (try HTTPS/localhost, or paste from console: await __wlCopyBugReport())',
+				);
+			}
+		} catch (e) {
+			console.error('[WL] copyBugReport failed', e);
 			copyStatus.value = 'err';
 		}
 		setTimeout(() => {

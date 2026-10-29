@@ -106,8 +106,7 @@ const pendingPayload = computed((): PendingPayload | null => {
 			cardId: 'mib-10',
 			title: c.title,
 			body: c.body,
-			subtitle:
-				'Cabaret proxy: pick two of your four dealt cards for the poker showdown (MIB wins ties). Use the side panel.',
+			subtitle: 'Cabaret proxy: pick two of your four dealt cards for the poker showdown (MIB wins ties). Use the side panel.',
 		};
 	}
 
@@ -168,9 +167,7 @@ const syncPayload = computed((): SyncPayload | null => {
 	};
 });
 
-const panelPayload = computed(
-	() => pendingPayload.value ?? outcomePayload.value ?? syncPayload.value,
-);
+const panelPayload = computed(() => pendingPayload.value ?? outcomePayload.value ?? syncPayload.value);
 
 function onGotItSync(): void {
 	const k = currentDiscardKey.value;
@@ -213,7 +210,7 @@ function onGotItOutcome(): void {
 						{{ line }}
 					</li>
 				</ul>
-				<p class="text-[10px] text-slate-500">Click Got it when you have read the results. You can always re-read the Trail in the side panel.</p>
+				<!-- <p class="text-[10px] text-slate-500">Click Got it when you have read the results. You can always re-read the Trail in the side panel.</p> -->
 				<button
 					type="button"
 					class="w-full shrink-0 rounded-lg border border-orange-600/70 bg-orange-900/45 px-4 py-2.5 text-sm font-semibold text-orange-50 hover:bg-orange-800/50"
@@ -243,12 +240,12 @@ function onGotItOutcome(): void {
 				</div>
 				<p class="text-sm leading-snug text-slate-200">{{ panelPayload.body }}</p>
 				<p class="text-xs leading-relaxed text-slate-400">{{ panelPayload.subtitle }}</p>
-				<p v-if="panelPayload.mode === 'pending'" class="text-[10px] text-slate-500">
+				<!-- <p v-if="panelPayload.mode === 'pending'" class="text-[10px] text-slate-500">
 					Use the side panel to take actions. Map input is dimmed until this card resolves.
 				</p>
 				<p v-else class="text-[10px] text-slate-500">
 					Effects already applied (gold, wounds, etc.). Click Got it to continue on the map.
-				</p>
+				</p> -->
 				<button
 					v-if="panelPayload.mode === 'syncAck'"
 					type="button"

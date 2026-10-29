@@ -1,18 +1,7 @@
 import { shuffle } from '@engine/client';
 
 /** Printed MIB deck card ids (10 cards). */
-export const MAN_IN_BLACK_CARD_IDS = [
-	'mib-01',
-	'mib-02',
-	'mib-03',
-	'mib-04',
-	'mib-05',
-	'mib-06',
-	'mib-07',
-	'mib-08',
-	'mib-09',
-	'mib-10',
-] as const;
+export const MAN_IN_BLACK_CARD_IDS = ['mib-01', 'mib-02', 'mib-03', 'mib-04', 'mib-05', 'mib-06', 'mib-07', 'mib-08', 'mib-09', 'mib-10'] as const;
 
 export type ManInBlackCardId = (typeof MAN_IN_BLACK_CARD_IDS)[number];
 
@@ -38,10 +27,7 @@ export function isManInBlackCatalogCardId(id: string): id is ManInBlackCardId {
 }
 
 /** Short UI copy for the board overlay (aligned with {@link dispatchManInBlackCard} in game logic). */
-export const MIB_CARD_OVERLAY_COPY: Record<
-	ManInBlackCardId,
-	{ title: string; body: string }
-> = {
+export const MIB_CARD_OVERLAY_COPY: Record<ManInBlackCardId, { title: string; body: string }> = {
 	'mib-01': {
 		title: 'Challenge the legendary leader',
 		body: 'The Man in Black joins the leader — the leader must duel you or lose the duel automatically.',
@@ -63,8 +49,8 @@ export const MIB_CARD_OVERLAY_COPY: Record<
 		body: 'MIB moves to a Sunny Side hideout. If a bandit was there: both lose $10, extra bandits may spawn on C hideouts, MIB gains a legendary point.',
 	},
 	'mib-06': {
-		title: 'Sunny Side hideout',
-		body: 'If a bandit was at this hideout, each player with no wounds takes 1 wound (MIB gains a legendary point).',
+		title: 'Sunny Hills hideout',
+		body: 'Place the Man In Black in Bandit Hideout B in Sunny Hills. If there is a Bandit there, remove that bandit. The Man In Black gails 1LP, and each player without a wound gains 1 wound.',
 	},
 	'mib-07': {
 		title: 'Dixon bandit hideout',
